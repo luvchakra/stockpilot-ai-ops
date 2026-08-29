@@ -168,3 +168,42 @@
     color: var(--color-foreground);
   }
 }
+
+@layer base {
+  body {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+}
+
+@utility hero-glow {
+  background-image: var(--gradient-hero);
+}
+
+@utility text-signal-gradient {
+  background-image: var(--gradient-signal);
+  background-clip: text;
+  color: transparent;
+}
+
+@utility panel {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+}
+
+@utility lift {
+  box-shadow: var(--shadow-lift);
+}
+
+@utility glow {
+  box-shadow: var(--shadow-glow);
+}
