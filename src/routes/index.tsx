@@ -269,8 +269,8 @@ function Landing() {
               <img
                 src={heroShot}
                 alt="StockPilot dashboard showing inventory value, stock risk trends and low-stock alerts"
-                width={1600}
-                height={1104}
+                width={1264}
+                height={848}
                 className="w-full"
               />
             </div>
