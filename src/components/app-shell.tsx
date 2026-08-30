@@ -9,10 +9,20 @@ import {
   Bell,
   ArrowLeftRight,
   LogOut,
+  User as UserIcon,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { useCurrentOrg } from "@/hooks/useOrg";
-import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
@@ -21,6 +31,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+
+function initialsFromEmail(email: string | null | undefined) {
+  if (!email) return "?";
+  return email.slice(0, 2).toUpperCase();
+}
 
 const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -44,6 +59,7 @@ export function AppShell({
 }) {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { user } = useAuth();
   const { org, memberships, selectOrg, loading, role } = useCurrentOrg();
 
   useEffect(() => {
@@ -84,11 +100,6 @@ export function AppShell({
             );
           })}
         </nav>
-
-        <Button variant="ghost" className="justify-start gap-3" onClick={signOut}>
-          <LogOut className="size-4" />
-          Sign out
-        </Button>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -121,6 +132,31 @@ export function AppShell({
                 </span>
               ) : null}
               {actions}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="rounded-full outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                    <Avatar className="size-9">
+                      <AvatarFallback className="bg-primary/10 text-sm font-medium text-primary">
+                        {initialsFromEmail(user?.email)}
+                      </AvatarFallback>
+                    </Avatar>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel className="truncate font-normal text-muted-foreground">
+                    {user?.email}
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => navigate({ to: "/account" })}>
+                    <UserIcon className="size-4" />
+                    Profile
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={signOut}>
+                    <LogOut className="size-4" />
+                    Sign out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
           <nav className="flex gap-1 overflow-x-auto border-t border-border px-2 py-2 md:hidden">
