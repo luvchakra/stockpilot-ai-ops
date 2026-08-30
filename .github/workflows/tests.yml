@@ -1,0 +1,44 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  landing-cta-smoke-test:
+    name: Landing page CTA smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Test Start Free / Log in are wired up
+        run: node scripts/test-landing-cta.mjs
+        env:
+          BASE_URL: https://stockpilot-ai-ops.lovable.app
+
+  tenant-rls-tests:
+    name: Multi-tenant RLS tests
+    # Creates and deletes real test data in the live Supabase project, so
+    # this only runs on PRs, not on every push to main.
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run RLS hardening test suite
+        run: node scripts/test-tenant-rls.mjs
+        env:
+          # SUPABASE_URL / SUPABASE_PUBLISHABLE_KEY come from the committed
+          # .env (safe to expose client-side). Only the service-role key,
+          # which enables cleanup of the users/rows this suite creates,
+          # needs to be a repository secret.
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
