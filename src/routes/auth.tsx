@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -69,16 +68,6 @@ function AuthPage() {
     setBusy(false);
     if (error) toast.error(error.message);
     else toast.success("Account created. Check your inbox if confirmation is required.");
-  };
-
-  const google = async () => {
-    try {
-      await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: window.location.origin,
-      });
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Google sign-in failed");
-    }
   };
 
   return (
