@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Boxes } from "lucide-react";
+import { Boxes, MailCheck } from "lucide-react";
 
 const authSearchSchema = z.object({
   mode: z.enum(["signin", "signup"]).catch("signin"),
@@ -42,6 +42,7 @@ function AuthPage() {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [busy, setBusy] = useState(false);
+  const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -64,7 +65,7 @@ function AuthPage() {
   const signUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -73,8 +74,19 @@ function AuthPage() {
       },
     });
     setBusy(false);
-    if (error) toast.error(error.message);
-    else toast.success("Account created. Check your inbox if confirmation is required.");
+    if (error) {
+      toast.error(error.message);
+    } else if (data.session) {
+      // Email confirmation is off for this project — onAuthStateChange
+      // above will pick up the session and redirect to /dashboard.
+      toast.success("Account created.");
+    } else {
+      // Confirmation required: no session yet, so there's nothing to
+      // redirect to. Show a persistent on-page state instead of just a
+      // toast, since the user needs to go check their email next.
+      setAwaitingConfirmation(true);
+      toast.success("Account created — check your inbox to confirm it.");
+    }
   };
 
   return (
@@ -86,81 +98,102 @@ function AuthPage() {
         </Link>
 
         <div className="panel rounded-2xl border border-border bg-card p-6">
-          <Tabs key={mode} defaultValue={mode}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="signin">Sign in</TabsTrigger>
-              <TabsTrigger value="signup">Create account</TabsTrigger>
-            </TabsList>
+          {awaitingConfirmation ? (
+            <div className="flex flex-col items-center py-4 text-center">
+              <span className="grid size-12 place-items-center rounded-full bg-primary/10 text-primary">
+                <MailCheck className="size-6" />
+              </span>
+              <h2 className="mt-4 font-display text-lg font-semibold">Check your inbox</h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                We sent a confirmation link to <span className="font-medium text-foreground">{email}</span>.
+                Click it to activate your account — you'll land on your dashboard automatically.
+              </p>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-4"
+                onClick={() => setAwaitingConfirmation(false)}
+              >
+                Use a different email
+              </Button>
+            </div>
+          ) : (
+            <Tabs key={mode} defaultValue={mode}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="signin">Sign in</TabsTrigger>
+                <TabsTrigger value="signup">Create account</TabsTrigger>
+              </TabsList>
 
-            <TabsContent value="signin" className="mt-6">
-              <form onSubmit={signIn} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="si-email">Work email</Label>
-                  <Input
-                    id="si-email"
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="you@company.in"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="si-pass">Password</Label>
-                  <Input
-                    id="si-pass"
-                    type="password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
-                </div>
-                <Button type="submit" className="w-full" disabled={busy}>
-                  {busy ? "Signing in…" : "Sign in"}
-                </Button>
-              </form>
-            </TabsContent>
+              <TabsContent value="signin" className="mt-6">
+                <form onSubmit={signIn} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="si-email">Work email</Label>
+                    <Input
+                      id="si-email"
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="you@company.in"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="si-pass">Password</Label>
+                    <Input
+                      id="si-pass"
+                      type="password"
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                    />
+                  </div>
+                  <Button type="submit" className="w-full" disabled={busy}>
+                    {busy ? "Signing in…" : "Sign in"}
+                  </Button>
+                </form>
+              </TabsContent>
 
-            <TabsContent value="signup" className="mt-6">
-              <form onSubmit={signUp} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="su-name">Full name</Label>
-                  <Input
-                    id="su-name"
-                    required
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    placeholder="Ananya Rao"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="su-email">Work email</Label>
-                  <Input
-                    id="su-email"
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="you@company.in"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="su-pass">Password</Label>
-                  <Input
-                    id="su-pass"
-                    type="password"
-                    required
-                    minLength={8}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
-                </div>
-                <Button type="submit" className="w-full" disabled={busy}>
-                  {busy ? "Creating…" : "Create account"}
-                </Button>
-              </form>
-            </TabsContent>
-          </Tabs>
+              <TabsContent value="signup" className="mt-6">
+                <form onSubmit={signUp} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="su-name">Full name</Label>
+                    <Input
+                      id="su-name"
+                      required
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="Ananya Rao"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="su-email">Work email</Label>
+                    <Input
+                      id="su-email"
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="you@company.in"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="su-pass">Password</Label>
+                    <Input
+                      id="su-pass"
+                      type="password"
+                      required
+                      minLength={8}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                    />
+                  </div>
+                  <Button type="submit" className="w-full" disabled={busy}>
+                    {busy ? "Creating…" : "Create account"}
+                  </Button>
+                </form>
+              </TabsContent>
+            </Tabs>
+          )}
         </div>
 
 
