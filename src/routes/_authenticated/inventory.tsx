@@ -1,0 +1,314 @@
+import { useState } from "react";
+import { createFileRoute } from "@tanstack/react-router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { ArrowLeftRight, Plus } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
+import { useCurrentOrg } from "@/hooks/useOrg";
+import { AppShell } from "@/components/app-shell";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { num } from "@/lib/format";
+
+export const Route = createFileRoute("/_authenticated/inventory")({
+  head: () => ({
+    meta: [
+      { title: "Inventory — StockPilot" },
+      { name: "description", content: "Live stock levels across every warehouse." },
+    ],
+  }),
+  component: Inventory,
+});
+
+type MovementType = Database["public"]["Enums"]["movement_type"];
+
+const MOVEMENT_TYPES: { value: MovementType; label: string }[] = [
+  { value: "inbound", label: "Inbound (receive stock)" },
+  { value: "outbound", label: "Outbound (sale/dispatch)" },
+  { value: "adjustment", label: "Adjustment (correction)" },
+  { value: "damage", label: "Damage" },
+  { value: "return", label: "Return" },
+  { value: "transfer_in", label: "Transfer in" },
+  { value: "transfer_out", label: "Transfer out" },
+];
+
+const emptyForm = {
+  product_id: "",
+  warehouse_id: "",
+  type: "inbound" as MovementType,
+  quantity: "",
+  reference: "",
+  notes: "",
+};
+
+function Inventory() {
+  const { org } = useCurrentOrg();
+  const orgId = org?.id;
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState(emptyForm);
+
+  const stockLevels = useQuery({
+    queryKey: ["stock_levels", orgId],
+    enabled: !!orgId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("stock_levels")
+        .select("*, products(name, sku, reorder_point), warehouses(name, code)")
+        .eq("org_id", orgId!)
+        .order("updated_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const products = useQuery({
+    queryKey: ["products", orgId, "active"],
+    enabled: !!orgId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("products")
+        .select("id, name, sku")
+        .eq("org_id", orgId!)
+        .eq("status", "active")
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const warehouses = useQuery({
+    queryKey: ["warehouses", orgId, "active"],
+    enabled: !!orgId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("warehouses")
+        .select("id, name")
+        .eq("org_id", orgId!)
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const recordMovement = useMutation({
+    mutationFn: async () => {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) throw new Error("Not signed in");
+      const { error } = await supabase.from("stock_movements").insert({
+        org_id: orgId!,
+        product_id: form.product_id,
+        warehouse_id: form.warehouse_id,
+        type: form.type,
+        quantity: Number(form.quantity),
+        reference: form.reference || null,
+        notes: form.notes || null,
+        created_by: userData.user.id,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Stock movement recorded");
+      setOpen(false);
+      setForm(emptyForm);
+      queryClient.invalidateQueries({ queryKey: ["stock_levels", orgId] });
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Could not record movement"),
+  });
+
+  return (
+    <AppShell
+      title="Inventory"
+      description="Live stock levels across every warehouse."
+      actions={
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogTrigger asChild>
+            <Button size="sm">
+              <Plus className="size-4" />
+              Record movement
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Record stock movement</DialogTitle>
+            </DialogHeader>
+            <form
+              className="space-y-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                recordMovement.mutate();
+              }}
+            >
+              <div className="space-y-2">
+                <Label htmlFor="mv-product">Product</Label>
+                <Select
+                  value={form.product_id}
+                  onValueChange={(v) => setForm((f) => ({ ...f, product_id: v }))}
+                  required
+                >
+                  <SelectTrigger id="mv-product">
+                    <SelectValue placeholder="Select product" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(products.data ?? []).map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name} ({p.sku})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="mv-warehouse">Warehouse</Label>
+                <Select
+                  value={form.warehouse_id}
+                  onValueChange={(v) => setForm((f) => ({ ...f, warehouse_id: v }))}
+                  required
+                >
+                  <SelectTrigger id="mv-warehouse">
+                    <SelectValue placeholder="Select warehouse" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(warehouses.data ?? []).map((w) => (
+                      <SelectItem key={w.id} value={w.id}>
+                        {w.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="mv-type">Type</Label>
+                  <Select
+                    value={form.type}
+                    onValueChange={(v) => setForm((f) => ({ ...f, type: v as MovementType }))}
+                  >
+                    <SelectTrigger id="mv-type">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MOVEMENT_TYPES.map((t) => (
+                        <SelectItem key={t.value} value={t.value}>
+                          {t.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="mv-qty">Quantity</Label>
+                  <Input
+                    id="mv-qty"
+                    type="number"
+                    required
+                    min={0.01}
+                    step="0.01"
+                    value={form.quantity}
+                    onChange={(e) => setForm((f) => ({ ...f, quantity: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="mv-ref">Reference</Label>
+                <Input
+                  id="mv-ref"
+                  value={form.reference}
+                  onChange={(e) => setForm((f) => ({ ...f, reference: e.target.value }))}
+                  placeholder="PO-1001, order id, etc."
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="mv-notes">Notes</Label>
+                <Input
+                  id="mv-notes"
+                  value={form.notes}
+                  onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                />
+              </div>
+              <DialogFooter>
+                <Button
+                  type="submit"
+                  disabled={recordMovement.isPending || !form.product_id || !form.warehouse_id}
+                >
+                  {recordMovement.isPending ? "Recording…" : "Record movement"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      }
+    >
+      {stockLevels.isLoading ? (
+        <div className="space-y-2">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+        </div>
+      ) : !stockLevels.data || stockLevels.data.length === 0 ? (
+        <div className="panel flex flex-col items-center gap-2 rounded-2xl border border-dashed border-border p-12 text-center">
+          <ArrowLeftRight className="size-8 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">
+            No stock recorded yet. Record your first movement to get started.
+          </p>
+        </div>
+      ) : (
+        <div className="panel overflow-x-auto rounded-2xl border border-border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Product</TableHead>
+                <TableHead>Warehouse</TableHead>
+                <TableHead className="text-right">On hand</TableHead>
+                <TableHead className="text-right">Reserved</TableHead>
+                <TableHead className="text-right">Available</TableHead>
+                <TableHead className="text-right">Incoming</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {stockLevels.data.map((row) => {
+                const available = Number(row.quantity) - Number(row.reserved);
+                const low =
+                  row.products?.reorder_point != null &&
+                  Number(row.quantity) <= Number(row.products.reorder_point);
+                return (
+                  <TableRow key={row.id}>
+                    <TableCell className="font-medium">
+                      {row.products?.name} <span className="text-muted-foreground">({row.products?.sku})</span>
+                    </TableCell>
+                    <TableCell>{row.warehouses?.name}</TableCell>
+                    <TableCell className={`text-right ${low ? "font-semibold text-destructive" : ""}`}>
+                      {num.format(Number(row.quantity))}
+                    </TableCell>
+                    <TableCell className="text-right">{num.format(Number(row.reserved))}</TableCell>
+                    <TableCell className="text-right">{num.format(available)}</TableCell>
+                    <TableCell className="text-right">{num.format(Number(row.incoming))}</TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+    </AppShell>
+  );
+}
