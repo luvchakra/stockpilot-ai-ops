@@ -8,6 +8,7 @@ import {
   Truck,
   Bell,
   ArrowLeftRight,
+  ClipboardList,
   LogOut,
   User as UserIcon,
 } from "lucide-react";
@@ -41,6 +42,7 @@ const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/products", label: "Products", icon: Package },
   { to: "/inventory", label: "Inventory", icon: ArrowLeftRight },
+  { to: "/purchase-orders", label: "Purchase Orders", icon: ClipboardList },
   { to: "/warehouses", label: "Warehouses", icon: Warehouse },
   { to: "/suppliers", label: "Suppliers", icon: Truck },
   { to: "/alerts", label: "Alerts", icon: Bell },
