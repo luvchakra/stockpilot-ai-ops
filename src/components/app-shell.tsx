@@ -104,17 +104,17 @@ export function AppShell({
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-10 border-b border-border bg-background/85 backdrop-blur">
-          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 md:px-8">
-            <div className="min-w-0">
+          <div className="flex items-center gap-3 px-4 py-4 md:px-8">
+            <div className="min-w-0 flex-1">
               <h1 className="font-display text-xl font-bold tracking-tight">{title}</h1>
               {description ? (
                 <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>
               ) : null}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 items-center gap-2 overflow-x-auto">
               {memberships.length > 0 ? (
                 <Select value={org?.id ?? ""} onValueChange={selectOrg}>
-                  <SelectTrigger className="w-48">
+                  <SelectTrigger className="w-48 shrink-0">
                     <SelectValue placeholder="Workspace" />
                   </SelectTrigger>
                   <SelectContent>
@@ -127,37 +127,39 @@ export function AppShell({
                 </Select>
               ) : null}
               {role ? (
-                <span className="hidden rounded-full border border-border px-3 py-1 text-xs capitalize text-muted-foreground sm:inline">
+                <span className="hidden shrink-0 rounded-full border border-border px-3 py-1 text-xs capitalize text-muted-foreground sm:inline">
                   {role}
                 </span>
               ) : null}
               {actions}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button className="rounded-full outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-                    <Avatar className="size-9">
-                      <AvatarFallback className="bg-primary/10 text-sm font-medium text-primary">
-                        {initialsFromEmail(user?.email)}
-                      </AvatarFallback>
-                    </Avatar>
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuLabel className="truncate font-normal text-muted-foreground">
-                    {user?.email}
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => navigate({ to: "/account" })}>
-                    <UserIcon className="size-4" />
-                    Profile
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={signOut}>
-                    <LogOut className="size-4" />
-                    Sign out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
             </div>
+            {/* Always pinned to the top-right corner, independent of how much
+                else is in the header — never wraps or scrolls away. */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="shrink-0 rounded-full outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                  <Avatar className="size-9">
+                    <AvatarFallback className="bg-primary/10 text-sm font-medium text-primary">
+                      {initialsFromEmail(user?.email)}
+                    </AvatarFallback>
+                  </Avatar>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel className="truncate font-normal text-muted-foreground">
+                  {user?.email}
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => navigate({ to: "/account" })}>
+                  <UserIcon className="size-4" />
+                  Profile
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={signOut}>
+                  <LogOut className="size-4" />
+                  Sign out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
           <nav className="flex gap-1 overflow-x-auto border-t border-border px-2 py-2 md:hidden">
             {NAV.map((item) => (
