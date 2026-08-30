@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Accordion,
   AccordionContent,
@@ -228,10 +228,16 @@ function Landing() {
             </a>
           </nav>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" className="hidden sm:inline-flex">
-              Log in
+            <Button variant="ghost" size="sm" className="hidden sm:inline-flex" asChild>
+              <Link to="/auth" search={{ mode: "signin" }}>
+                Log in
+              </Link>
             </Button>
-            <Button size="sm">Start Free</Button>
+            <Button size="sm" asChild>
+              <Link to="/auth" search={{ mode: "signup" }}>
+                Start Free
+              </Link>
+            </Button>
           </div>
         </div>
       </header>
@@ -254,8 +260,10 @@ function Landing() {
               channels and finances from one intelligent platform.
             </p>
             <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <Button size="lg" className="w-full sm:w-auto">
-                Start Free <ArrowRight className="size-4" />
+              <Button size="lg" className="w-full sm:w-auto" asChild>
+                <Link to="/auth" search={{ mode: "signup" }}>
+                  Start Free <ArrowRight className="size-4" />
+                </Link>
               </Button>
               <Button size="lg" variant="outline" className="w-full sm:w-auto">
                 Book a Demo
@@ -518,8 +526,15 @@ function Landing() {
                 <Button
                   className="mt-6"
                   variant={plan.featured ? "default" : "outline"}
+                  asChild={plan.cta === "Start Free"}
                 >
-                  {plan.cta}
+                  {plan.cta === "Start Free" ? (
+                    <Link to="/auth" search={{ mode: "signup" }}>
+                      {plan.cta}
+                    </Link>
+                  ) : (
+                    plan.cta
+                  )}
                 </Button>
               </div>
             ))}
@@ -550,8 +565,10 @@ function Landing() {
               what needs attention today.
             </p>
             <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <Button size="lg" className="w-full sm:w-auto">
-                Start Free <ArrowRight className="size-4" />
+              <Button size="lg" className="w-full sm:w-auto" asChild>
+                <Link to="/auth" search={{ mode: "signup" }}>
+                  Start Free <ArrowRight className="size-4" />
+                </Link>
               </Button>
               <Button size="lg" variant="outline" className="w-full sm:w-auto">
                 Book a Demo

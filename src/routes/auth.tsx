@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { z } from "zod";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -8,7 +9,12 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Boxes } from "lucide-react";
 
+const authSearchSchema = z.object({
+  mode: z.enum(["signin", "signup"]).catch("signin"),
+});
+
 export const Route = createFileRoute("/auth")({
+  validateSearch: authSearchSchema,
   head: () => ({
     meta: [
       { title: "Sign in to StockPilot — Inventory & Procurement OS" },
@@ -31,6 +37,7 @@ export const Route = createFileRoute("/auth")({
 
 function AuthPage() {
   const navigate = useNavigate();
+  const { mode } = Route.useSearch();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
@@ -79,7 +86,7 @@ function AuthPage() {
         </Link>
 
         <div className="panel rounded-2xl border border-border bg-card p-6">
-          <Tabs defaultValue="signin">
+          <Tabs key={mode} defaultValue={mode}>
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="signin">Sign in</TabsTrigger>
               <TabsTrigger value="signup">Create account</TabsTrigger>
