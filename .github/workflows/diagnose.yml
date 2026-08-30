@@ -1,0 +1,24 @@
+name: Diagnose onboarding flow
+
+# Manual-only: this creates and deletes a real test user/org against the
+# live Supabase project, so it never runs automatically on push or PR —
+# only when explicitly triggered to answer "what does this flow actually
+# fail with right now".
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    name: Reproduce Create workspace and print the real error
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/diagnose-onboarding.mjs
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
