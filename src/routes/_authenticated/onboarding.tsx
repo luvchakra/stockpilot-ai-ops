@@ -78,7 +78,17 @@ function Onboarding() {
       toast.success("Workspace ready");
       navigate({ to: "/dashboard" });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not create workspace");
+      // Supabase query errors (e.g. an RLS rejection) are plain
+      // { message, details, hint, code } objects, not Error instances,
+      // so `err instanceof Error` alone would hide their real message
+      // behind the generic fallback below.
+      const message =
+        err instanceof Error
+          ? err.message
+          : err && typeof err === "object" && typeof (err as { message?: unknown }).message === "string"
+            ? (err as { message: string }).message
+            : "Could not create workspace";
+      toast.error(message);
     } finally {
       setBusy(false);
     }
