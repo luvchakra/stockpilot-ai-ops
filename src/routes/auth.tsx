@@ -154,17 +154,8 @@ function AuthPage() {
               </form>
             </TabsContent>
           </Tabs>
-
-          <div className="my-6 flex items-center gap-3 text-xs text-muted-foreground">
-            <span className="h-px flex-1 bg-border" />
-            OR
-            <span className="h-px flex-1 bg-border" />
-          </div>
-
-          <Button variant="outline" className="w-full" onClick={google}>
-            Continue with Google
-          </Button>
         </div>
+
 
         <p className="mt-6 text-center text-xs text-muted-foreground">
           Multi-tenant workspaces with row-level isolation. GST-ready, INR-native.
