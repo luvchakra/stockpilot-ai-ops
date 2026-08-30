@@ -8,17 +8,18 @@
 //
 // WHAT THIS CREATES: 4 throwaway auth users (emails tagged
 // rls-test-<run>-*@test.stockpilot.invalid), 1 organization, and a
-// handful of rows under it. Auth users cannot be deleted with the
-// anon/publishable key, so repeated runs accumulate test accounts in
-// your project. Two ways to clean up:
-//   - export SUPABASE_SERVICE_ROLE_KEY=... before running, and this
-//     script will delete everything it created at the end (pass or fail).
-//   - or periodically remove users matching "rls-test-" from the
-//     Supabase dashboard yourself.
+// handful of rows under it.
+//
+// SUPABASE_SERVICE_ROLE_KEY is effectively required, not just for
+// cleanup: if the project requires email confirmation before a session
+// is issued (the default), the suite has no other way to authenticate
+// its own test users and skips with a clear message instead of failing.
+// With the key set, it creates pre-confirmed users via the Admin API
+// and deletes everything it created at the end (pass or fail).
 //
 // This performs real writes against your live project. Do not run it
 // against a database you care about without SUPABASE_SERVICE_ROLE_KEY
-// set for cleanup, or without being ready to hand-remove the test rows.
+// set, or without being ready to hand-remove test rows/users yourself.
 //
 // Usage:
 //   SUPABASE_SERVICE_ROLE_KEY=... node scripts/test-tenant-rls.mjs
@@ -108,26 +109,55 @@ async function rest(method, table, { token, body, query = "", extraHeaders = {} 
   return { status: res.status, ok: res.ok, data };
 }
 
+class NeedsServiceRoleKeyError extends Error {}
+
+async function createConfirmedUserViaAdmin(email, password) {
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: SERVICE_KEY,
+      Authorization: `Bearer ${SERVICE_KEY}`,
+    },
+    body: JSON.stringify({ email, password, email_confirm: true }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(`admin user creation failed for ${email}: ${JSON.stringify(data)}`);
+  }
+  return data.id ?? data.user?.id;
+}
+
 async function makeUser(tag) {
   const email = `rls-test-${RUN_ID}-${tag}@test.stockpilot.invalid`;
+
+  if (SERVICE_KEY) {
+    // Create the user pre-confirmed via the Admin API, so this suite works
+    // regardless of the project's "confirm email" auth setting, then sign
+    // in normally to get a real user-scoped access token for RLS checks.
+    const userId = await createConfirmedUserViaAdmin(email, PASSWORD);
+    const signin = await signIn(email, PASSWORD);
+    if (!signin.ok || !signin.data.access_token) {
+      throw new Error(`sign-in failed for admin-created user ${email}: ${JSON.stringify(signin.data)}`);
+    }
+    createdUserIds.push({ email, id: userId });
+    return { email, id: userId, token: signin.data.access_token };
+  }
+
   const signup = await signUp(email, PASSWORD);
   if (!signup.ok) {
     throw new Error(`sign-up failed for ${email}: ${JSON.stringify(signup.data)}`);
   }
-  let token = signup.data.access_token;
-  let userId = signup.data.user?.id ?? signup.data.id;
+  const token = signup.data.access_token;
+  const userId = signup.data.user?.id ?? signup.data.id;
   if (!token) {
-    // Project requires email confirmation before a session is issued.
-    const signin = await signIn(email, PASSWORD);
-    if (!signin.ok || !signin.data.access_token) {
-      throw new Error(
-        `Project appears to require email confirmation, so ${email} has no session yet. ` +
-          `This suite needs auto-confirmed sign-ups (Supabase Auth setting) to proceed. ` +
-          `Raw response: ${JSON.stringify(signin.data)}`,
-      );
-    }
-    token = signin.data.access_token;
-    userId = signin.data.user?.id;
+    // Project requires email confirmation before a session is issued, and
+    // we have no service-role key to create pre-confirmed users instead.
+    throw new NeedsServiceRoleKeyError(
+      `Project requires email confirmation before ${email} gets a session, and no ` +
+        `SUPABASE_SERVICE_ROLE_KEY is set to create pre-confirmed test users instead. ` +
+        `Set that secret to run this suite.`,
+    );
   }
   createdUserIds.push({ email, id: userId });
   return { email, id: userId, token };
@@ -352,7 +382,14 @@ main()
     process.exit(failed > 0 ? 1 : 0);
   })
   .catch(async (err) => {
-    console.error("\nSuite errored out:", err.message);
     await cleanup();
+    if (err instanceof NeedsServiceRoleKeyError) {
+      // Not a policy failure — the suite simply can't authenticate its own
+      // fixtures yet. Skip cleanly rather than failing CI on a missing
+      // secret that hasn't been configured.
+      console.warn(`\nSkipping RLS suite: ${err.message}`);
+      process.exit(0);
+    }
+    console.error("\nSuite errored out:", err.message);
     process.exit(1);
   });
