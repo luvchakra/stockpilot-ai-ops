@@ -11,6 +11,7 @@ import {
   Menu,
   Moon,
   Package,
+  Plus,
   Search,
   Truck,
   ArrowLeftRight,
@@ -35,6 +36,7 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -178,7 +180,16 @@ export function AppShell({
 
         <div className="ml-auto flex min-w-0 items-center gap-2">
           {memberships.length > 0 ? (
-            <Select value={org?.id ?? ""} onValueChange={selectOrg}>
+            <Select
+              value={org?.id ?? ""}
+              onValueChange={(value) => {
+                if (value === "__new_workspace__") {
+                  navigate({ to: "/onboarding" });
+                  return;
+                }
+                selectOrg(value);
+              }}
+            >
               <SelectTrigger className="w-40 shrink-0 sm:w-48">
                 <SelectValue placeholder="Workspace" />
               </SelectTrigger>
@@ -188,6 +199,13 @@ export function AppShell({
                     {m.organizations.name}
                   </SelectItem>
                 ))}
+                <SelectSeparator />
+                <SelectItem value="__new_workspace__">
+                  <span className="flex items-center gap-2">
+                    <Plus className="size-4" />
+                    Create new workspace
+                  </span>
+                </SelectItem>
               </SelectContent>
             </Select>
           ) : null}
