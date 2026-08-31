@@ -108,11 +108,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   errorComponent: ErrorComponent,
 });
 
+// Applies the stored (or system) theme before first paint, so switching
+// pages or reloading never flashes the wrong mode. Must stay in sync with
+// the resolution logic in src/hooks/useTheme.ts.
+const THEME_INIT_SCRIPT = `(function(){try{var m=localStorage.getItem("stockpilot.theme");var d=m==="dark"||(m!=="light"&&window.matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d);}catch(e){}})();`;
+
 function RootShell({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <head>
         <HeadContent />
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body>
         {children}
