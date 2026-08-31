@@ -3,6 +3,7 @@ import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle,
+  ArrowLeft,
   Bell,
   Boxes,
   ClipboardList,
@@ -67,11 +68,15 @@ export function AppShell({
   title,
   description,
   actions,
+  showBackButton,
   children,
 }: {
   title: string;
   description?: string;
   actions?: ReactNode;
+  /** Show a "Back" control before the title, for pages reached by drilling
+   * in rather than from the primary sidebar (e.g. Account/Profile). */
+  showBackButton?: boolean;
   children: ReactNode;
 }) {
   const navigate = useNavigate();
@@ -284,6 +289,17 @@ export function AppShell({
 
         <div className="flex min-w-0 flex-1 flex-col overflow-y-auto">
           <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-border bg-background/95 px-4 py-4 backdrop-blur md:px-8">
+            {showBackButton ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="shrink-0"
+                onClick={() => window.history.back()}
+              >
+                <ArrowLeft className="size-4" />
+                <span className="sr-only">Back</span>
+              </Button>
+            ) : null}
             <div className="min-w-0 flex-1">
               <h1 className="font-display text-xl font-bold tracking-tight">{title}</h1>
               {description ? (

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Truck } from "lucide-react";
+import { Pencil, Plus, Truck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentOrg } from "@/hooks/useOrg";
 import { AppShell } from "@/components/app-shell";
@@ -48,6 +48,7 @@ function Suppliers() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const suppliers = useQuery({
     queryKey: ["suppliers", orgId],
@@ -63,10 +64,9 @@ function Suppliers() {
     },
   });
 
-  const createSupplier = useMutation({
+  const saveSupplier = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("suppliers").insert({
-        org_id: orgId!,
+      const payload = {
         name: form.name,
         code: form.code || null,
         contact_person: form.contact_person || null,
@@ -75,17 +75,39 @@ function Suppliers() {
         gst_number: form.gst_number || null,
         payment_terms: form.payment_terms || null,
         lead_time_days: Number(form.lead_time_days) || 7,
-      });
-      if (error) throw error;
+      };
+      if (editingId) {
+        const { error } = await supabase.from("suppliers").update(payload).eq("id", editingId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("suppliers").insert({ org_id: orgId!, ...payload });
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
-      toast.success("Supplier created");
+      toast.success(editingId ? "Supplier updated" : "Supplier created");
       setOpen(false);
       setForm(emptyForm);
+      setEditingId(null);
       queryClient.invalidateQueries({ queryKey: ["suppliers", orgId] });
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "Could not create supplier"),
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Could not save supplier"),
   });
+
+  const startEdit = (sup: NonNullable<typeof suppliers.data>[number]) => {
+    setForm({
+      name: sup.name,
+      code: sup.code ?? "",
+      contact_person: sup.contact_person ?? "",
+      email: sup.email ?? "",
+      phone: sup.phone ?? "",
+      gst_number: sup.gst_number ?? "",
+      payment_terms: sup.payment_terms ?? "",
+      lead_time_days: String(sup.lead_time_days ?? 7),
+    });
+    setEditingId(sup.id);
+    setOpen(true);
+  };
 
   const toggleActive = useMutation({
     mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
@@ -103,20 +125,26 @@ function Suppliers() {
       actions={
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button size="sm">
+            <Button
+              size="sm"
+              onClick={() => {
+                setForm(emptyForm);
+                setEditingId(null);
+              }}
+            >
               <Plus className="size-4" />
               New supplier
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>New supplier</DialogTitle>
+              <DialogTitle>{editingId ? "Edit supplier" : "New supplier"}</DialogTitle>
             </DialogHeader>
             <form
               className="space-y-4"
               onSubmit={(e) => {
                 e.preventDefault();
-                createSupplier.mutate();
+                saveSupplier.mutate();
               }}
             >
               <div className="grid gap-4 sm:grid-cols-2">
@@ -192,8 +220,12 @@ function Suppliers() {
                 </div>
               </div>
               <DialogFooter>
-                <Button type="submit" disabled={createSupplier.isPending}>
-                  {createSupplier.isPending ? "Creating…" : "Create supplier"}
+                <Button type="submit" disabled={saveSupplier.isPending}>
+                  {saveSupplier.isPending
+                    ? "Saving…"
+                    : editingId
+                      ? "Save changes"
+                      : "Create supplier"}
                 </Button>
               </DialogFooter>
             </form>
@@ -237,6 +269,10 @@ function Suppliers() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
+                    <Button variant="ghost" size="sm" onClick={() => startEdit(sup)}>
+                      <Pencil className="size-4" />
+                      Edit
+                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"

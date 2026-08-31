@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Package, Plus } from "lucide-react";
+import { Package, Pencil, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentOrg } from "@/hooks/useOrg";
 import { AppShell } from "@/components/app-shell";
@@ -59,6 +59,7 @@ function Products() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const products = useQuery({
     queryKey: ["products", orgId],
@@ -89,7 +90,7 @@ function Products() {
     },
   });
 
-  const createProduct = useMutation({
+  const saveProduct = useMutation({
     mutationFn: async () => {
       let category_id: string | null = null;
       const categoryName = form.category.trim();
@@ -113,8 +114,7 @@ function Products() {
         }
       }
 
-      const { error } = await supabase.from("products").insert({
-        org_id: orgId!,
+      const payload = {
         sku: form.sku,
         name: form.name,
         category_id,
@@ -126,17 +126,42 @@ function Products() {
         selling_price: Number(form.selling_price) || 0,
         reorder_point: Number(form.reorder_point) || 0,
         reorder_quantity: Number(form.reorder_quantity) || 0,
-      });
-      if (error) throw error;
+      };
+      if (editingId) {
+        const { error } = await supabase.from("products").update(payload).eq("id", editingId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("products").insert({ org_id: orgId!, ...payload });
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
-      toast.success("Product created");
+      toast.success(editingId ? "Product updated" : "Product created");
       setOpen(false);
       setForm(emptyForm);
+      setEditingId(null);
       queryClient.invalidateQueries({ queryKey: ["products", orgId] });
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "Could not create product"),
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Could not save product"),
   });
+
+  const startEdit = (p: NonNullable<typeof products.data>[number]) => {
+    setForm({
+      sku: p.sku,
+      name: p.name,
+      category: p.categories?.name ?? "",
+      supplier_id: p.supplier_id ?? "",
+      unit: p.unit,
+      hsn_code: p.hsn_code ?? "",
+      tax_rate: String(p.tax_rate ?? 0),
+      cost_price: String(p.cost_price ?? 0),
+      selling_price: String(p.selling_price ?? 0),
+      reorder_point: String(p.reorder_point ?? 0),
+      reorder_quantity: String(p.reorder_quantity ?? 0),
+    });
+    setEditingId(p.id);
+    setOpen(true);
+  };
 
   const toggleStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
@@ -154,20 +179,26 @@ function Products() {
       actions={
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button size="sm">
+            <Button
+              size="sm"
+              onClick={() => {
+                setForm(emptyForm);
+                setEditingId(null);
+              }}
+            >
               <Plus className="size-4" />
               New product
             </Button>
           </DialogTrigger>
           <DialogContent className="max-h-[85vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>New product</DialogTitle>
+              <DialogTitle>{editingId ? "Edit product" : "New product"}</DialogTitle>
             </DialogHeader>
             <form
               className="space-y-4"
               onSubmit={(e) => {
                 e.preventDefault();
-                createProduct.mutate();
+                saveProduct.mutate();
               }}
             >
               <div className="grid gap-4 sm:grid-cols-2">
@@ -287,8 +318,12 @@ function Products() {
                 </div>
               </div>
               <DialogFooter>
-                <Button type="submit" disabled={createProduct.isPending}>
-                  {createProduct.isPending ? "Creating…" : "Create product"}
+                <Button type="submit" disabled={saveProduct.isPending}>
+                  {saveProduct.isPending
+                    ? "Saving…"
+                    : editingId
+                      ? "Save changes"
+                      : "Create product"}
                 </Button>
               </DialogFooter>
             </form>
@@ -334,6 +369,10 @@ function Products() {
                     <Badge variant={p.status === "active" ? "default" : "secondary"}>{p.status}</Badge>
                   </TableCell>
                   <TableCell className="text-right">
+                    <Button variant="ghost" size="sm" onClick={() => startEdit(p)}>
+                      <Pencil className="size-4" />
+                      Edit
+                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"

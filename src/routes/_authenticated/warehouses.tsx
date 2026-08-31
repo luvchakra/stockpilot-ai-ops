@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Warehouse as WarehouseIcon } from "lucide-react";
+import { Pencil, Plus, Warehouse as WarehouseIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentOrg } from "@/hooks/useOrg";
 import { AppShell } from "@/components/app-shell";
@@ -39,6 +39,7 @@ function Warehouses() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const warehouses = useQuery({
     queryKey: ["warehouses", orgId],
@@ -54,27 +55,47 @@ function Warehouses() {
     },
   });
 
-  const createWarehouse = useMutation({
+  const saveWarehouse = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("warehouses").insert({
-        org_id: orgId!,
+      const payload = {
         name: form.name,
         code: form.code,
         type: form.type,
         city: form.city || null,
         state: form.state || null,
         address: form.address || null,
-      });
-      if (error) throw error;
+      };
+      if (editingId) {
+        const { error } = await supabase.from("warehouses").update(payload).eq("id", editingId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("warehouses").insert({ org_id: orgId!, ...payload });
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
-      toast.success("Warehouse created");
+      toast.success(editingId ? "Warehouse updated" : "Warehouse created");
       setOpen(false);
       setForm(emptyForm);
+      setEditingId(null);
       queryClient.invalidateQueries({ queryKey: ["warehouses", orgId] });
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "Could not create warehouse"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : "Could not save warehouse"),
   });
+
+  const startEdit = (wh: NonNullable<typeof warehouses.data>[number]) => {
+    setForm({
+      name: wh.name,
+      code: wh.code,
+      type: wh.type,
+      city: wh.city ?? "",
+      state: wh.state ?? "",
+      address: wh.address ?? "",
+    });
+    setEditingId(wh.id);
+    setOpen(true);
+  };
 
   const toggleActive = useMutation({
     mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
@@ -92,20 +113,26 @@ function Warehouses() {
       actions={
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button size="sm">
+            <Button
+              size="sm"
+              onClick={() => {
+                setForm(emptyForm);
+                setEditingId(null);
+              }}
+            >
               <Plus className="size-4" />
               New warehouse
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>New warehouse</DialogTitle>
+              <DialogTitle>{editingId ? "Edit warehouse" : "New warehouse"}</DialogTitle>
             </DialogHeader>
             <form
               className="space-y-4"
               onSubmit={(e) => {
                 e.preventDefault();
-                createWarehouse.mutate();
+                saveWarehouse.mutate();
               }}
             >
               <div className="grid gap-4 sm:grid-cols-2">
@@ -155,8 +182,12 @@ function Warehouses() {
                 />
               </div>
               <DialogFooter>
-                <Button type="submit" disabled={createWarehouse.isPending}>
-                  {createWarehouse.isPending ? "Creating…" : "Create warehouse"}
+                <Button type="submit" disabled={saveWarehouse.isPending}>
+                  {saveWarehouse.isPending
+                    ? "Saving…"
+                    : editingId
+                      ? "Save changes"
+                      : "Create warehouse"}
                 </Button>
               </DialogFooter>
             </form>
@@ -200,6 +231,10 @@ function Warehouses() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
+                    <Button variant="ghost" size="sm" onClick={() => startEdit(wh)}>
+                      <Pencil className="size-4" />
+                      Edit
+                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"
