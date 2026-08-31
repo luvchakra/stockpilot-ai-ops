@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowLeftRight, Plus } from "lucide-react";
+import { ArrowLeftRight, Pencil, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { useCurrentOrg } from "@/hooks/useOrg";
@@ -66,6 +66,9 @@ function Inventory() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
+  const [adjustingRow, setAdjustingRow] = useState<{ product: string; warehouse: string } | null>(
+    null,
+  );
 
   const stockLevels = useQuery({
     queryKey: ["stock_levels", orgId],
@@ -131,10 +134,22 @@ function Inventory() {
       toast.success("Stock movement recorded");
       setOpen(false);
       setForm(emptyForm);
+      setAdjustingRow(null);
       queryClient.invalidateQueries({ queryKey: ["stock_levels", orgId] });
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : "Could not record movement"),
   });
+
+  const startEdit = (row: NonNullable<typeof stockLevels.data>[number]) => {
+    setForm({
+      ...emptyForm,
+      product_id: row.product_id,
+      warehouse_id: row.warehouse_id,
+      type: "adjustment",
+    });
+    setAdjustingRow({ product: row.products?.name ?? "this product", warehouse: row.warehouses?.name ?? "this warehouse" });
+    setOpen(true);
+  };
 
   return (
     <AppShell
@@ -143,15 +158,28 @@ function Inventory() {
       actions={
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button size="sm">
+            <Button
+              size="sm"
+              onClick={() => {
+                setForm(emptyForm);
+                setAdjustingRow(null);
+              }}
+            >
               <Plus className="size-4" />
               Record movement
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Record stock movement</DialogTitle>
+              <DialogTitle>{adjustingRow ? "Edit stock level" : "Record stock movement"}</DialogTitle>
             </DialogHeader>
+            {adjustingRow ? (
+              <p className="-mt-2 text-sm text-muted-foreground">
+                Stock on hand isn't edited directly — it's a running total of every movement, so
+                this posts a correcting movement for {adjustingRow.product} at{" "}
+                {adjustingRow.warehouse} instead.
+              </p>
+            ) : null}
             <form
               className="space-y-4"
               onSubmit={(e) => {
@@ -282,6 +310,7 @@ function Inventory() {
                 <TableHead className="text-right">Reserved</TableHead>
                 <TableHead className="text-right">Available</TableHead>
                 <TableHead className="text-right">Incoming</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -302,6 +331,12 @@ function Inventory() {
                     <TableCell className="text-right">{num.format(Number(row.reserved))}</TableCell>
                     <TableCell className="text-right">{num.format(available)}</TableCell>
                     <TableCell className="text-right">{num.format(Number(row.incoming))}</TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="sm" onClick={() => startEdit(row)}>
+                        <Pencil className="size-4" />
+                        Edit
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 );
               })}
