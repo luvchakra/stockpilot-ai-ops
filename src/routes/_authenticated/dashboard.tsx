@@ -179,7 +179,7 @@ function Kpi({
   icon,
 }: {
   label: string;
-  value?: string;
+  value?: string | undefined;
   icon: React.ReactNode;
 }) {
   return (
