@@ -45,6 +45,7 @@ export function useTheme() {
 
   const setMode = useCallback((next: ThemeMode) => {
     window.localStorage.setItem(THEME_STORAGE_KEY, next);
+    applyTheme(next);
     setModeState(next);
   }, []);
 
