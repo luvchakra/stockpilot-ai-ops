@@ -10,6 +10,37 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+const CURRENCIES = [
+  { value: "INR", label: "INR — Indian Rupee" },
+  { value: "USD", label: "USD — US Dollar" },
+  { value: "EUR", label: "EUR — Euro" },
+  { value: "GBP", label: "GBP — British Pound" },
+  { value: "AED", label: "AED — UAE Dirham" },
+  { value: "SGD", label: "SGD — Singapore Dollar" },
+  { value: "AUD", label: "AUD — Australian Dollar" },
+];
+
+const TIMEZONES = [
+  "Asia/Kolkata",
+  "Asia/Dubai",
+  "Asia/Singapore",
+  "Asia/Karachi",
+  "Asia/Dhaka",
+  "Europe/London",
+  "Europe/Berlin",
+  "America/New_York",
+  "America/Los_Angeles",
+  "Australia/Sydney",
+  "UTC",
+];
 
 export const Route = createFileRoute("/_authenticated/account")({
   head: () => ({
@@ -29,6 +60,8 @@ function Account() {
   const [busy, setBusy] = useState(false);
   const [orgName, setOrgName] = useState("");
   const [orgIndustry, setOrgIndustry] = useState("");
+  const [orgCurrency, setOrgCurrency] = useState("INR");
+  const [orgTimezone, setOrgTimezone] = useState("Asia/Kolkata");
   const [orgBusy, setOrgBusy] = useState(false);
 
   const profile = useQuery({
@@ -53,6 +86,8 @@ function Account() {
     if (org) {
       setOrgName(org.name);
       setOrgIndustry(org.industry ?? "");
+      setOrgCurrency(org.currency);
+      setOrgTimezone(org.timezone);
     }
   }, [org]);
 
@@ -77,7 +112,12 @@ function Account() {
     setOrgBusy(true);
     const { error } = await supabase
       .from("organizations")
-      .update({ name: orgName, industry: orgIndustry || null })
+      .update({
+        name: orgName,
+        industry: orgIndustry || null,
+        currency: orgCurrency,
+        timezone: orgTimezone,
+      })
       .eq("id", org.id);
     setOrgBusy(false);
     if (error) {
@@ -143,6 +183,38 @@ function Account() {
                       placeholder="FMCG distribution"
                     />
                   </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="org-currency">Currency</Label>
+                      <Select value={orgCurrency} onValueChange={setOrgCurrency}>
+                        <SelectTrigger id="org-currency">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {CURRENCIES.map((c) => (
+                            <SelectItem key={c.value} value={c.value}>
+                              {c.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="org-timezone">Timezone</Label>
+                      <Select value={orgTimezone} onValueChange={setOrgTimezone}>
+                        <SelectTrigger id="org-timezone">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {TIMEZONES.map((tz) => (
+                            <SelectItem key={tz} value={tz}>
+                              {tz}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                   <Button type="submit" disabled={orgBusy}>
                     {orgBusy ? "Saving…" : "Save changes"}
                   </Button>
@@ -154,6 +226,12 @@ function Account() {
                   </p>
                   <p>
                     <span className="text-muted-foreground">Industry:</span> {org.industry ?? "—"}
+                  </p>
+                  <p>
+                    <span className="text-muted-foreground">Currency:</span> {org.currency}
+                  </p>
+                  <p>
+                    <span className="text-muted-foreground">Timezone:</span> {org.timezone}
                   </p>
                   <p className="mt-2 text-xs text-muted-foreground">
                     Only workspace owners and admins can edit these details.

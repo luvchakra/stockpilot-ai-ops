@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Pencil, Plus, Truck } from "lucide-react";
+import { Pencil, Plus, Star, Truck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentOrg } from "@/hooks/useOrg";
 import { AppShell } from "@/components/app-shell";
@@ -38,8 +38,13 @@ const emptyForm = {
   email: "",
   phone: "",
   gst_number: "",
+  address: "",
+  city: "",
+  state: "",
   payment_terms: "",
   lead_time_days: "7",
+  min_order_quantity: "",
+  rating: "0",
 };
 
 function Suppliers() {
@@ -73,8 +78,13 @@ function Suppliers() {
         email: form.email || null,
         phone: form.phone || null,
         gst_number: form.gst_number || null,
+        address: form.address || null,
+        city: form.city || null,
+        state: form.state || null,
         payment_terms: form.payment_terms || null,
         lead_time_days: Number(form.lead_time_days) || 7,
+        min_order_quantity: form.min_order_quantity ? Number(form.min_order_quantity) : null,
+        rating: Number(form.rating) || 0,
       };
       if (editingId) {
         const { error } = await supabase.from("suppliers").update(payload).eq("id", editingId);
@@ -102,8 +112,13 @@ function Suppliers() {
       email: sup.email ?? "",
       phone: sup.phone ?? "",
       gst_number: sup.gst_number ?? "",
+      address: sup.address ?? "",
+      city: sup.city ?? "",
+      state: sup.state ?? "",
       payment_terms: sup.payment_terms ?? "",
       lead_time_days: String(sup.lead_time_days ?? 7),
+      min_order_quantity: sup.min_order_quantity != null ? String(sup.min_order_quantity) : "",
+      rating: String(sup.rating ?? 0),
     });
     setEditingId(sup.id);
     setOpen(true);
@@ -200,6 +215,30 @@ function Suppliers() {
                   />
                 </div>
                 <div className="space-y-2">
+                  <Label htmlFor="sup-address">Address</Label>
+                  <Input
+                    id="sup-address"
+                    value={form.address}
+                    onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="sup-city">City</Label>
+                  <Input
+                    id="sup-city"
+                    value={form.city}
+                    onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="sup-state">State</Label>
+                  <Input
+                    id="sup-state"
+                    value={form.state}
+                    onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="sup-terms">Payment terms</Label>
                   <Input
                     id="sup-terms"
@@ -216,6 +255,29 @@ function Suppliers() {
                     min={0}
                     value={form.lead_time_days}
                     onChange={(e) => setForm((f) => ({ ...f, lead_time_days: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="sup-moq">Minimum order quantity</Label>
+                  <Input
+                    id="sup-moq"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={form.min_order_quantity}
+                    onChange={(e) => setForm((f) => ({ ...f, min_order_quantity: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="sup-rating">Rating (0-5)</Label>
+                  <Input
+                    id="sup-rating"
+                    type="number"
+                    min={0}
+                    max={5}
+                    step="0.5"
+                    value={form.rating}
+                    onChange={(e) => setForm((f) => ({ ...f, rating: e.target.value }))}
                   />
                 </div>
               </div>
@@ -252,6 +314,7 @@ function Suppliers() {
                 <TableHead>Contact</TableHead>
                 <TableHead>Phone</TableHead>
                 <TableHead>Lead time</TableHead>
+                <TableHead>Rating</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -263,6 +326,16 @@ function Suppliers() {
                   <TableCell>{sup.contact_person ?? "—"}</TableCell>
                   <TableCell>{sup.phone ?? "—"}</TableCell>
                   <TableCell>{sup.lead_time_days}d</TableCell>
+                  <TableCell>
+                    {Number(sup.rating) > 0 ? (
+                      <span className="flex items-center gap-1">
+                        <Star className="size-3.5 fill-warn text-warn" />
+                        {Number(sup.rating).toFixed(1)}
+                      </span>
+                    ) : (
+                      "—"
+                    )}
+                  </TableCell>
                   <TableCell>
                     <Badge variant={sup.is_active ? "default" : "secondary"}>
                       {sup.is_active ? "Active" : "Inactive"}

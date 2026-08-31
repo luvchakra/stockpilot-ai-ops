@@ -1,6 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, IndianRupee, Package, TrendingDown } from "lucide-react";
+import {
+  AlertTriangle,
+  Clock,
+  IndianRupee,
+  Package,
+  PackageCheck,
+  ShoppingCart,
+  TrendingDown,
+  Truck,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentOrg } from "@/hooks/useOrg";
 import { AppShell } from "@/components/app-shell";
@@ -30,6 +39,8 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
   component: Dashboard,
 });
 
+const OPEN_PO_STATUSES = new Set(["draft", "pending_approval", "approved", "sent", "partially_received"]);
+
 function Dashboard() {
   const { org } = useCurrentOrg();
   const orgId = org?.id;
@@ -38,12 +49,15 @@ function Dashboard() {
     queryKey: ["dashboard", orgId],
     enabled: !!orgId,
     queryFn: async () => {
-      const [products, levels, alerts, movements] = await Promise.all([
+      const [products, levels, alerts, movements, purchaseOrders] = await Promise.all([
         supabase
           .from("products")
           .select("id, name, sku, cost_price, reorder_point")
           .eq("org_id", orgId!),
-        supabase.from("stock_levels").select("product_id, quantity").eq("org_id", orgId!),
+        supabase
+          .from("stock_levels")
+          .select("product_id, quantity, reserved, incoming")
+          .eq("org_id", orgId!),
         supabase
           .from("alerts")
           .select("id, title, severity, created_at")
@@ -57,27 +71,65 @@ function Dashboard() {
           .eq("org_id", orgId!)
           .order("created_at", { ascending: false })
           .limit(8),
+        supabase
+          .from("purchase_orders")
+          .select("id, po_number, status, expected_delivery_date, suppliers(name)")
+          .eq("org_id", orgId!),
       ]);
 
       const productList = products.data ?? [];
       const levelList = levels.data ?? [];
       const qtyByProduct = new Map<string, number>();
+      let reservedTotal = 0;
+      let incomingTotal = 0;
       for (const l of levelList) {
         qtyByProduct.set(l.product_id, (qtyByProduct.get(l.product_id) ?? 0) + Number(l.quantity));
+        reservedTotal += Number(l.reserved);
+        incomingTotal += Number(l.incoming);
       }
+      const unitsOnHand = [...qtyByProduct.values()].reduce((a, b) => a + b, 0);
+
       const stockValue = productList.reduce(
         (sum, p) => sum + Number(p.cost_price) * (qtyByProduct.get(p.id) ?? 0),
         0,
       );
-      const lowStock = productList.filter(
-        (p) => (qtyByProduct.get(p.id) ?? 0) <= Number(p.reorder_point),
+
+      let healthy = 0;
+      let low = 0;
+      let stockout = 0;
+      const lowStock: typeof productList = [];
+      for (const p of productList) {
+        const qty = qtyByProduct.get(p.id) ?? 0;
+        if (qty <= 0) {
+          stockout++;
+          lowStock.push(p);
+        } else if (Number(p.reorder_point) > 0 && qty <= Number(p.reorder_point)) {
+          low++;
+          lowStock.push(p);
+        } else {
+          healthy++;
+        }
+      }
+
+      const today = new Date().toISOString().slice(0, 10);
+      const openPOs = (purchaseOrders.data ?? []).filter((po) => OPEN_PO_STATUSES.has(po.status));
+      const overduePOs = openPOs.filter(
+        (po) => po.expected_delivery_date && po.expected_delivery_date < today,
       );
 
       return {
         productCount: productList.length,
         stockValue,
-        units: [...qtyByProduct.values()].reduce((a, b) => a + b, 0),
+        units: unitsOnHand,
+        reserved: reservedTotal,
+        incoming: incomingTotal,
+        available: unitsOnHand - reservedTotal,
+        healthy,
+        low,
+        stockout,
         lowStock,
+        pendingPurchases: openPOs.length,
+        overduePOs,
         alerts: alerts.data ?? [],
         movements: movements.data ?? [],
       };
@@ -91,30 +143,66 @@ function Dashboard() {
       title="Operations dashboard"
       description={org ? `${org.name} · live across all warehouses` : "Loading workspace…"}
     >
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Kpi
           label="Inventory value"
           value={data ? inr.format(data.stockValue) : undefined}
           icon={<IndianRupee className="size-4 text-signal" />}
         />
         <Kpi
-          label="Units on hand"
-          value={data ? num.format(data.units) : undefined}
+          label="Available stock"
+          value={data ? num.format(data.available) : undefined}
           icon={<Package className="size-4 text-signal" />}
         />
         <Kpi
-          label="Below reorder point"
-          value={data ? num.format(data.lowStock.length) : undefined}
+          label="Reserved stock"
+          value={data ? num.format(data.reserved) : undefined}
+          icon={<PackageCheck className="size-4 text-signal" />}
+        />
+        <Kpi
+          label="Incoming stock"
+          value={data ? num.format(data.incoming) : undefined}
+          icon={<Truck className="size-4 text-signal" />}
+        />
+        <Kpi
+          label="Stockout risk"
+          value={data ? num.format(data.stockout + data.low) : undefined}
           icon={<TrendingDown className="size-4 text-warn" />}
         />
         <Kpi
-          label="Open alerts"
-          value={data ? num.format(data.alerts.length) : undefined}
-          icon={<AlertTriangle className="size-4 text-warn" />}
+          label="Pending purchases"
+          value={data ? num.format(data.pendingPurchases) : undefined}
+          icon={<ShoppingCart className="size-4 text-warn" />}
         />
       </div>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle className="text-base">Daily brief</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {!data ? (
+            <Skeleton className="h-16 w-full" />
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">{buildBrief(org?.name, data)}</p>
+              <div className="mt-4 flex flex-wrap gap-4 text-sm">
+                <span className="flex items-center gap-1.5">
+                  <span className="size-2 rounded-full bg-signal" /> {data.healthy} healthy
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="size-2 rounded-full bg-warn" /> {data.low} low stock
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="size-2 rounded-full bg-destructive" /> {data.stockout} out of stock
+                </span>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="mt-6 grid gap-4 lg:grid-cols-3">
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Reorder watchlist</CardTitle>
@@ -138,6 +226,46 @@ function Dashboard() {
                   </Badge>
                 </div>
               ))
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Attention center</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {!data ? (
+              <Skeleton className="h-24 w-full" />
+            ) : data.overduePOs.length === 0 && data.alerts.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nothing needs your attention right now.</p>
+            ) : (
+              <>
+                {data.overduePOs.slice(0, 3).map((po) => (
+                  <div key={po.id} className="flex items-center justify-between gap-3 text-sm">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{po.po_number}</p>
+                      <p className="text-xs text-muted-foreground">{po.suppliers?.name}</p>
+                    </div>
+                    <Badge variant="destructive" className="shrink-0">
+                      <Clock className="size-3" />
+                      Overdue
+                    </Badge>
+                  </div>
+                ))}
+                {data.alerts.slice(0, 3).map((a) => (
+                  <div key={a.id} className="flex items-center justify-between gap-3 text-sm">
+                    <p className="min-w-0 truncate font-medium">{a.title}</p>
+                    <Badge
+                      variant={a.severity === "critical" ? "destructive" : "outline"}
+                      className="shrink-0"
+                    >
+                      <AlertTriangle className="size-3" />
+                      {a.severity}
+                    </Badge>
+                  </div>
+                ))}
+              </>
             )}
           </CardContent>
         </Card>
@@ -171,6 +299,41 @@ function Dashboard() {
       </div>
     </AppShell>
   );
+}
+
+function buildBrief(
+  orgName: string | undefined,
+  data: {
+    stockValue: number;
+    productCount: number;
+    stockout: number;
+    low: number;
+    pendingPurchases: number;
+    overduePOs: unknown[];
+    alerts: unknown[];
+  },
+) {
+  const parts: string[] = [
+    `${orgName ?? "Your workspace"}'s inventory is worth ${inr.format(data.stockValue)} across ${num.format(data.productCount)} products.`,
+  ];
+  if (data.stockout > 0 || data.low > 0) {
+    parts.push(
+      `${num.format(data.stockout)} ${data.stockout === 1 ? "is" : "are"} out of stock and ${num.format(data.low)} ${data.low === 1 ? "is" : "are"} below reorder point.`,
+    );
+  } else {
+    parts.push("Stock levels are healthy across the board.");
+  }
+  if (data.pendingPurchases > 0) {
+    parts.push(
+      `${num.format(data.pendingPurchases)} purchase order${data.pendingPurchases === 1 ? " is" : "s are"} awaiting delivery${
+        data.overduePOs.length > 0 ? `, including ${num.format(data.overduePOs.length)} overdue` : ""
+      }.`,
+    );
+  }
+  if (data.alerts.length > 0) {
+    parts.push(`${num.format(data.alerts.length)} open alert${data.alerts.length === 1 ? "" : "s"} need attention.`);
+  }
+  return parts.join(" ");
 }
 
 function Kpi({

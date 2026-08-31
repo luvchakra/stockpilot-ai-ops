@@ -31,7 +31,17 @@ export const Route = createFileRoute("/_authenticated/warehouses")({
   component: Warehouses,
 });
 
-const emptyForm = { name: "", code: "", type: "warehouse", city: "", state: "", address: "" };
+const emptyForm = {
+  name: "",
+  code: "",
+  type: "warehouse",
+  city: "",
+  state: "",
+  address: "",
+  postal_code: "",
+  contact_name: "",
+  contact_phone: "",
+};
 
 function Warehouses() {
   const { org } = useCurrentOrg();
@@ -64,6 +74,9 @@ function Warehouses() {
         city: form.city || null,
         state: form.state || null,
         address: form.address || null,
+        postal_code: form.postal_code || null,
+        contact_name: form.contact_name || null,
+        contact_phone: form.contact_phone || null,
       };
       if (editingId) {
         const { error } = await supabase.from("warehouses").update(payload).eq("id", editingId);
@@ -92,6 +105,9 @@ function Warehouses() {
       city: wh.city ?? "",
       state: wh.state ?? "",
       address: wh.address ?? "",
+      postal_code: wh.postal_code ?? "",
+      contact_name: wh.contact_name ?? "",
+      contact_phone: wh.contact_phone ?? "",
     });
     setEditingId(wh.id);
     setOpen(true);
@@ -172,6 +188,30 @@ function Warehouses() {
                     onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))}
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="wh-postal">PIN code</Label>
+                  <Input
+                    id="wh-postal"
+                    value={form.postal_code}
+                    onChange={(e) => setForm((f) => ({ ...f, postal_code: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="wh-contact-name">Contact name</Label>
+                  <Input
+                    id="wh-contact-name"
+                    value={form.contact_name}
+                    onChange={(e) => setForm((f) => ({ ...f, contact_name: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="wh-contact-phone">Contact phone</Label>
+                  <Input
+                    id="wh-contact-phone"
+                    value={form.contact_phone}
+                    onChange={(e) => setForm((f) => ({ ...f, contact_phone: e.target.value }))}
+                  />
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="wh-address">Address</Label>
@@ -214,6 +254,7 @@ function Warehouses() {
                 <TableHead>Code</TableHead>
                 <TableHead>City</TableHead>
                 <TableHead>State</TableHead>
+                <TableHead>Contact</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -225,6 +266,7 @@ function Warehouses() {
                   <TableCell>{wh.code}</TableCell>
                   <TableCell>{wh.city ?? "—"}</TableCell>
                   <TableCell>{wh.state ?? "—"}</TableCell>
+                  <TableCell>{wh.contact_name ?? wh.contact_phone ?? "—"}</TableCell>
                   <TableCell>
                     <Badge variant={wh.is_active ? "default" : "secondary"}>
                       {wh.is_active ? "Active" : "Inactive"}
