@@ -192,7 +192,6 @@ export type Database = {
       products: {
         Row: {
           barcode: string | null
-          brand: string | null
           category_id: string | null
           cost_price: number
           created_at: string
@@ -214,7 +213,6 @@ export type Database = {
         }
         Insert: {
           barcode?: string | null
-          brand?: string | null
           category_id?: string | null
           cost_price?: number
           created_at?: string
@@ -236,7 +234,6 @@ export type Database = {
         }
         Update: {
           barcode?: string | null
-          brand?: string | null
           category_id?: string | null
           cost_price?: number
           created_at?: string
@@ -575,7 +572,6 @@ export type Database = {
           id: string
           is_active: boolean
           lead_time_days: number
-          min_order_quantity: number | null
           name: string
           org_id: string
           payment_terms: string | null
@@ -595,7 +591,6 @@ export type Database = {
           id?: string
           is_active?: boolean
           lead_time_days?: number
-          min_order_quantity?: number | null
           name: string
           org_id: string
           payment_terms?: string | null
@@ -615,7 +610,6 @@ export type Database = {
           id?: string
           is_active?: boolean
           lead_time_days?: number
-          min_order_quantity?: number | null
           name?: string
           org_id?: string
           payment_terms?: string | null
@@ -639,15 +633,12 @@ export type Database = {
           address: string | null
           city: string | null
           code: string
-          contact_name: string | null
-          contact_phone: string | null
           country: string
           created_at: string
           id: string
           is_active: boolean
           name: string
           org_id: string
-          postal_code: string | null
           state: string | null
           type: string
           updated_at: string
@@ -656,15 +647,12 @@ export type Database = {
           address?: string | null
           city?: string | null
           code: string
-          contact_name?: string | null
-          contact_phone?: string | null
           country?: string
           created_at?: string
           id?: string
           is_active?: boolean
           name: string
           org_id: string
-          postal_code?: string | null
           state?: string | null
           type?: string
           updated_at?: string
@@ -673,15 +661,12 @@ export type Database = {
           address?: string | null
           city?: string | null
           code?: string
-          contact_name?: string | null
-          contact_phone?: string | null
           country?: string
           created_at?: string
           id?: string
           is_active?: boolean
           name?: string
           org_id?: string
-          postal_code?: string | null
           state?: string | null
           type?: string
           updated_at?: string
@@ -874,6 +859,16 @@ export const Constants = {
         "damage",
       ],
       org_role: ["owner", "admin", "manager", "staff", "viewer"],
+      po_status: [
+        "draft",
+        "pending_approval",
+        "approved",
+        "sent",
+        "partially_received",
+        "received",
+        "closed",
+        "cancelled",
+      ],
     },
   },
 } as const
