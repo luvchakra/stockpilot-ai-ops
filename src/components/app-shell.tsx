@@ -1,17 +1,22 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import {
-  Boxes,
-  LayoutDashboard,
-  Package,
-  Warehouse,
-  Truck,
+  AlertTriangle,
   Bell,
-  ArrowLeftRight,
+  Boxes,
   ClipboardList,
+  LayoutDashboard,
   LogOut,
   Menu,
+  Moon,
+  Package,
+  Search,
+  Truck,
+  ArrowLeftRight,
+  Warehouse,
   User as UserIcon,
+  ChevronDown,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -41,14 +46,19 @@ function initialsFromEmail(email: string | null | undefined) {
   return email.slice(0, 2).toUpperCase();
 }
 
-const NAV = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+// Two visual groups, matching the reference layout: everyday views up top,
+// action/ops items (what needs doing) below a divider.
+const NAV_PRIMARY = [
+  { to: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { to: "/products", label: "Products", icon: Package },
   { to: "/inventory", label: "Inventory", icon: ArrowLeftRight },
-  { to: "/purchase-orders", label: "Purchase Orders", icon: ClipboardList },
   { to: "/warehouses", label: "Warehouses", icon: Warehouse },
   { to: "/suppliers", label: "Suppliers", icon: Truck },
-  { to: "/alerts", label: "Alerts", icon: Bell },
+] as const;
+
+const NAV_SECONDARY = [
+  { to: "/purchase-orders", label: "Purchase Orders", icon: ClipboardList },
+  { to: "/alerts", label: "Alerts", icon: AlertTriangle },
 ] as const;
 
 export function AppShell({
@@ -76,136 +86,202 @@ export function AppShell({
     setMobileNavOpen(false);
   }, [pathname]);
 
+  const openAlerts = useQuery({
+    queryKey: ["open-alerts-count", org?.id],
+    enabled: !!org?.id,
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("alerts")
+        .select("id", { count: "exact", head: true })
+        .eq("org_id", org!.id)
+        .eq("status", "open");
+      return count ?? 0;
+    },
+  });
+  const openAlertCount = openAlerts.data ?? 0;
+
   const signOut = async () => {
     await supabase.auth.signOut();
     navigate({ to: "/auth" });
   };
 
+  const navItem = (
+    item: (typeof NAV_PRIMARY)[number] | (typeof NAV_SECONDARY)[number],
+    onNavigate?: () => void,
+  ) => {
+    const Icon = item.icon;
+    const active = pathname === item.to;
+    const showAlertDot = item.to === "/alerts" && openAlertCount > 0;
+    return (
+      <Link
+        key={item.to}
+        to={item.to}
+        onClick={onNavigate}
+        className={cn(
+          "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+          active
+            ? "bg-signal text-signal-foreground"
+            : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
+        )}
+      >
+        <span className="relative flex">
+          <Icon className="size-4" />
+          {showAlertDot ? (
+            <span className="absolute -right-1 -top-1 size-1.5 rounded-full bg-destructive" />
+          ) : null}
+        </span>
+        {item.label}
+      </Link>
+    );
+  };
+
   const navLinks = (onNavigate?: () => void) => (
     <nav className="flex flex-1 flex-col gap-1">
-      {NAV.map((item) => {
-        const Icon = item.icon;
-        const active = pathname === item.to;
-        return (
-          <Link
-            key={item.to}
-            to={item.to}
-            onClick={onNavigate}
-            className={cn(
-              "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-              active
-                ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
-            )}
-          >
-            <Icon className="size-4" />
-            {item.label}
-          </Link>
-        );
-      })}
+      {NAV_PRIMARY.map((item) => navItem(item, onNavigate))}
+      <div className="my-2 border-t border-sidebar-border" />
+      {NAV_SECONDARY.map((item) => navItem(item, onNavigate))}
     </nav>
   );
 
+  const sidebarBody = (onNavigate?: () => void) => (
+    <>
+      {navLinks(onNavigate)}
+      <div className="mt-4 flex shrink-0 cursor-default items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground">
+        <Moon className="size-4" />
+        Dark
+        <ChevronDown className="ml-auto size-4" />
+      </div>
+    </>
+  );
+
   return (
-    <div className="flex min-h-screen bg-background">
-      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar p-4 md:flex">
-        <Link to="/dashboard" className="mb-6 flex items-center gap-2 px-2">
-          <Boxes className="size-5 text-signal" />
-          <span className="font-display text-lg font-bold tracking-tight">StockPilot</span>
+    <div className="flex h-screen flex-col bg-background">
+      <header className="z-20 flex shrink-0 items-center gap-3 border-b border-border bg-background/95 px-4 py-3 backdrop-blur md:px-6">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="shrink-0 md:hidden"
+          onClick={() => setMobileNavOpen(true)}
+        >
+          <Menu className="size-5" />
+          <span className="sr-only">Open navigation</span>
+        </Button>
+
+        <Link to="/dashboard" className="flex shrink-0 items-center gap-2">
+          <span className="flex size-9 items-center justify-center rounded-lg bg-signal/15">
+            <Boxes className="size-5 text-signal" />
+          </span>
+          <span className="hidden font-display text-lg font-bold tracking-tight sm:inline">
+            StockPilot
+          </span>
         </Link>
 
-        {navLinks()}
-      </aside>
+        <div className="ml-auto flex min-w-0 items-center gap-2">
+          {memberships.length > 0 ? (
+            <Select value={org?.id ?? ""} onValueChange={selectOrg}>
+              <SelectTrigger className="w-40 shrink-0 sm:w-48">
+                <SelectValue placeholder="Workspace" />
+              </SelectTrigger>
+              <SelectContent>
+                {memberships.map((m) => (
+                  <SelectItem key={m.organizations.id} value={m.organizations.id}>
+                    {m.organizations.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : null}
 
-      <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-        <SheetContent side="left" className="flex w-64 flex-col bg-sidebar p-4">
-          <SheetTitle asChild>
-            <Link
-              to="/dashboard"
-              onClick={() => setMobileNavOpen(false)}
-              className="mb-6 flex items-center gap-2 px-2"
-            >
-              <Boxes className="size-5 text-signal" />
-              <span className="font-display text-lg font-bold tracking-tight">StockPilot</span>
-            </Link>
-          </SheetTitle>
+          <div className="relative hidden lg:block">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="search"
+              placeholder="Search…"
+              className="h-9 w-56 rounded-md border border-input bg-secondary/40 pl-9 pr-3 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring"
+            />
+          </div>
 
-          {navLinks(() => setMobileNavOpen(false))}
-        </SheetContent>
-      </Sheet>
+          <button
+            onClick={() => navigate({ to: "/alerts" })}
+            className="relative shrink-0 rounded-full p-2 text-muted-foreground outline-none transition-colors hover:bg-sidebar-accent/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Bell className="size-5" />
+            <span className="sr-only">Alerts</span>
+            {openAlertCount > 0 ? (
+              <span className="absolute -right-0.5 -top-0.5 flex size-4 items-center justify-center rounded-full bg-destructive text-[10px] font-medium text-destructive-foreground">
+                {openAlertCount > 9 ? "9+" : openAlertCount}
+              </span>
+            ) : null}
+          </button>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-10 border-b border-border bg-background/85 backdrop-blur">
-          <div className="flex items-center gap-3 px-4 py-4 md:px-8">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="shrink-0 md:hidden"
-              onClick={() => setMobileNavOpen(true)}
-            >
-              <Menu className="size-5" />
-              <span className="sr-only">Open navigation</span>
-            </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="shrink-0 rounded-full outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                <Avatar className="size-9">
+                  <AvatarFallback className="bg-primary/10 text-sm font-medium text-primary">
+                    {initialsFromEmail(user?.email)}
+                  </AvatarFallback>
+                </Avatar>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel className="truncate font-normal text-muted-foreground">
+                {user?.email}
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => navigate({ to: "/account" })}>
+                <UserIcon className="size-4" />
+                Profile
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={signOut}>
+                <LogOut className="size-4" />
+                Sign out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </header>
+
+      <div className="flex flex-1 overflow-hidden">
+        <aside className="hidden w-60 shrink-0 flex-col overflow-y-auto border-r border-sidebar-border bg-sidebar p-4 md:flex">
+          {sidebarBody()}
+        </aside>
+
+        <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+          <SheetContent side="left" className="flex w-64 flex-col bg-sidebar p-4">
+            <SheetTitle asChild>
+              <Link
+                to="/dashboard"
+                onClick={() => setMobileNavOpen(false)}
+                className="mb-6 flex items-center gap-2 px-2"
+              >
+                <Boxes className="size-5 text-signal" />
+                <span className="font-display text-lg font-bold tracking-tight">StockPilot</span>
+              </Link>
+            </SheetTitle>
+
+            {sidebarBody(() => setMobileNavOpen(false))}
+          </SheetContent>
+        </Sheet>
+
+        <div className="flex min-w-0 flex-1 flex-col overflow-y-auto">
+          <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-border bg-background/95 px-4 py-4 backdrop-blur md:px-8">
             <div className="min-w-0 flex-1">
               <h1 className="font-display text-xl font-bold tracking-tight">{title}</h1>
               {description ? (
                 <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>
               ) : null}
             </div>
-            <div className="flex min-w-0 items-center gap-2 overflow-x-auto">
-              {memberships.length > 0 ? (
-                <Select value={org?.id ?? ""} onValueChange={selectOrg}>
-                  <SelectTrigger className="w-48 shrink-0">
-                    <SelectValue placeholder="Workspace" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {memberships.map((m) => (
-                      <SelectItem key={m.organizations.id} value={m.organizations.id}>
-                        {m.organizations.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : null}
-              {role ? (
-                <span className="hidden shrink-0 rounded-full border border-border px-3 py-1 text-xs capitalize text-muted-foreground sm:inline">
-                  {role}
-                </span>
-              ) : null}
-              {actions}
-            </div>
-            {/* Always pinned to the top-right corner, independent of how much
-                else is in the header (including the mobile menu button) —
-                never wraps or scrolls away. */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="shrink-0 rounded-full outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-                  <Avatar className="size-9">
-                    <AvatarFallback className="bg-primary/10 text-sm font-medium text-primary">
-                      {initialsFromEmail(user?.email)}
-                    </AvatarFallback>
-                  </Avatar>
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuLabel className="truncate font-normal text-muted-foreground">
-                  {user?.email}
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => navigate({ to: "/account" })}>
-                  <UserIcon className="size-4" />
-                  Profile
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={signOut}>
-                  <LogOut className="size-4" />
-                  Sign out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {role ? (
+              <span className="hidden shrink-0 rounded-full border border-border px-3 py-1 text-xs capitalize text-muted-foreground sm:inline">
+                {role}
+              </span>
+            ) : null}
+            {actions}
           </div>
-        </header>
 
-        <main className="flex-1 px-4 py-6 md:px-8">{children}</main>
+          <main className="flex-1 px-4 py-6 md:px-8">{children}</main>
+        </div>
       </div>
     </div>
   );
