@@ -25,8 +25,10 @@ jobs:
 
   tenant-rls-tests:
     name: Multi-tenant RLS tests
-    # Creates and deletes real test data in the live Supabase project, so
-    # this only runs on PRs, not on every push to main.
+    # Runs after the smoke test so a broken deploy fails fast before this
+    # suite creates and deletes real test data in the live Supabase
+    # project. Only on PRs, not on every push to main.
+    needs: landing-cta-smoke-test
     if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
@@ -42,3 +44,21 @@ jobs:
           # which enables cleanup of the users/rows this suite creates,
           # needs to be a repository secret.
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+  build:
+    name: Build (typecheck + production build)
+    # Nothing gets a chance to become a new (broken) deploy until the fast
+    # smoke test has passed first.
+    needs: landing-cta-smoke-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Typecheck
+        run: bunx tsc --noEmit
+      - name: Production build
+        run: bun run build

@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 // Integration test suite for the multi-tenant RLS hardening
-// (supabase/migrations/20260830130000_harden_tenant_rls.sql).
+// (supabase/migrations/20260830130000_harden_tenant_rls.sql) plus RLS
+// coverage for features added since: workspace editing and the
+// purchase-order create/edit/receive workflow.
 //
 // Exercises the live Supabase project over its REST/Auth API — no
 // @supabase/supabase-js needed, just Node's built-in fetch, so it runs
@@ -8,7 +10,8 @@
 //
 // WHAT THIS CREATES: 4 throwaway auth users (emails tagged
 // rls-test-<run>-*@test.stockpilot.invalid), 1 organization, and a
-// handful of rows under it.
+// handful of rows under it (products, a warehouse, a supplier, a
+// purchase order and its line item, a stock movement).
 //
 // SUPABASE_SERVICE_ROLE_KEY is effectively required, not just for
 // cleanup: if the project requires email confirmation before a session
@@ -82,6 +85,29 @@ async function signUp(email, password) {
 
 async function signIn(email, password) {
   return authRequest("/token?grant_type=password", { email, password });
+}
+
+async function rpc(fn, { token, body } = {}) {
+  const headers = {
+    "Content-Type": "application/json",
+    apikey: token ? ANON_KEY : (SERVICE_KEY ?? ANON_KEY),
+  };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  else if (SERVICE_KEY) headers.Authorization = `Bearer ${SERVICE_KEY}`;
+
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body ?? {}),
+  });
+  const text = await res.text();
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = text;
+  }
+  return { status: res.status, ok: res.ok, data };
 }
 
 async function rest(method, table, { token, body, query = "", extraHeaders = {} } = {}) {
@@ -369,6 +395,168 @@ async function main() {
       "owner CAN change the billing plan",
       asOwner.ok && asOwner.data?.[0]?.plan === "growth",
       `status ${asOwner.status}, body ${JSON.stringify(asOwner.data)}`,
+    );
+  }
+
+  // --- F. Workspace (organization) editing ------------------------------
+  console.log("\nF. Workspace name/industry editing");
+  {
+    const asViewer = await rest("PATCH", "organizations", {
+      token: viewer.token,
+      query: `?id=eq.${orgId}`,
+      body: { name: "Viewer Renamed Co" },
+    });
+    check(
+      "viewer cannot rename the workspace",
+      !asViewer.ok,
+      `status ${asViewer.status}, body ${JSON.stringify(asViewer.data)}`,
+    );
+
+    const asAdmin = await rest("PATCH", "organizations", {
+      token: admin.token,
+      query: `?id=eq.${orgId}`,
+      body: { name: "Renamed By Admin", industry: "Wholesale" },
+    });
+    check(
+      "admin CAN rename the workspace and set its industry",
+      asAdmin.ok && asAdmin.data?.[0]?.name === "Renamed By Admin" && asAdmin.data?.[0]?.industry === "Wholesale",
+      `status ${asAdmin.status}, body ${JSON.stringify(asAdmin.data)}`,
+    );
+  }
+
+  // --- G. Purchase order lifecycle + receiving RLS -----------------------
+  console.log("\nG. Purchase orders: creation, cross-tenant isolation, receiving");
+  {
+    const supplier = await rest("POST", "suppliers", {
+      token: admin.token,
+      body: { org_id: orgId, name: `PO Supplier ${RUN_ID}` },
+    });
+    const warehouse = await rest("POST", "warehouses", {
+      token: admin.token,
+      body: { org_id: orgId, name: "PO Test WH", code: `PO-WH-${RUN_ID}` },
+    });
+    const product = await rest("POST", "products", {
+      token: admin.token,
+      body: { org_id: orgId, sku: `PO-SKU-${RUN_ID}`, name: "PO test product", cost_price: 50 },
+    });
+    const supplierId = supplier.data?.[0]?.id;
+    const warehouseId = warehouse.data?.[0]?.id;
+    const productId = product.data?.[0]?.id;
+
+    const viewerPoAttempt = await rest("POST", "purchase_orders", {
+      token: viewer.token,
+      body: {
+        org_id: orgId,
+        supplier_id: supplierId,
+        warehouse_id: warehouseId,
+        po_number: `PO-VIEWER-${RUN_ID}`,
+      },
+    });
+    check(
+      "viewer cannot create a purchase order",
+      !viewerPoAttempt.ok,
+      `expected failure, got status ${viewerPoAttempt.status}`,
+    );
+
+    const po = await rest("POST", "purchase_orders", {
+      token: admin.token,
+      body: {
+        org_id: orgId,
+        supplier_id: supplierId,
+        warehouse_id: warehouseId,
+        po_number: `PO-${RUN_ID}`,
+        total_amount: 500,
+      },
+    });
+    check("admin/staff can create a purchase order", po.ok, `status ${po.status}, body ${JSON.stringify(po.data)}`);
+    const poId = po.data?.[0]?.id;
+
+    const item = await rest("POST", "purchase_order_items", {
+      token: admin.token,
+      body: { org_id: orgId, purchase_order_id: poId, product_id: productId, quantity: 10, unit_cost: 50 },
+    });
+    check("admin can add a line item to the draft PO", item.ok, `status ${item.status}`);
+    const itemId = item.data?.[0]?.id;
+
+    const outsiderRead = await rest("GET", "purchase_orders", {
+      token: outsider.token,
+      query: `?id=eq.${poId}`,
+    });
+    check(
+      "a non-member cannot read another org's purchase order",
+      outsiderRead.ok && Array.isArray(outsiderRead.data) && outsiderRead.data.length === 0,
+      `body ${JSON.stringify(outsiderRead.data)}`,
+    );
+
+    const outsiderEdit = await rest("PATCH", "purchase_orders", {
+      token: outsider.token,
+      query: `?id=eq.${poId}`,
+      body: { notes: "hijacked" },
+    });
+    const outsiderEdited = outsiderEdit.ok && Array.isArray(outsiderEdit.data) && outsiderEdit.data.length > 0;
+    check("a non-member cannot edit another org's purchase order", !outsiderEdited, `status ${outsiderEdit.status}`);
+
+    const edit = await rest("PATCH", "purchase_orders", {
+      token: admin.token,
+      query: `?id=eq.${poId}`,
+      body: { notes: "Edited before approval" },
+    });
+    check(
+      "admin can edit their own org's draft purchase order",
+      edit.ok && edit.data?.[0]?.notes === "Edited before approval",
+      `status ${edit.status}`,
+    );
+
+    // Walk the PO to a receivable state the way the UI's status buttons do.
+    await rest("PATCH", "purchase_orders", {
+      token: admin.token,
+      query: `?id=eq.${poId}`,
+      body: { status: "approved" },
+    });
+    await rest("PATCH", "purchase_orders", {
+      token: admin.token,
+      query: `?id=eq.${poId}`,
+      body: { status: "sent" },
+    });
+
+    const outsiderReceive = await rpc("receive_purchase_order_item", {
+      token: outsider.token,
+      body: { _item_id: itemId, _quantity: 5 },
+    });
+    check(
+      "a non-member cannot receive stock against another org's PO item",
+      !outsiderReceive.ok,
+      `expected failure, got status ${outsiderReceive.status}, body ${JSON.stringify(outsiderReceive.data)}`,
+    );
+
+    const receive = await rpc("receive_purchase_order_item", {
+      token: admin.token,
+      body: { _item_id: itemId, _quantity: 10 },
+    });
+    check(
+      "admin can receive the full ordered quantity",
+      receive.ok,
+      `status ${receive.status}, body ${JSON.stringify(receive.data)}`,
+    );
+
+    const poAfter = await rest("GET", "purchase_orders", {
+      token: admin.token,
+      query: `?id=eq.${poId}&select=status`,
+    });
+    check(
+      "PO status rolls forward to received once fully received",
+      poAfter.data?.[0]?.status === "received",
+      `body ${JSON.stringify(poAfter.data)}`,
+    );
+
+    const stockAfter = await rest("GET", "stock_levels", {
+      token: admin.token,
+      query: `?product_id=eq.${productId}&warehouse_id=eq.${warehouseId}&select=quantity`,
+    });
+    check(
+      "receiving posted a stock movement that updated stock_levels",
+      Number(stockAfter.data?.[0]?.quantity) === 10,
+      `body ${JSON.stringify(stockAfter.data)}`,
     );
   }
 
