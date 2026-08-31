@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ClipboardList, Pencil, Plus, Trash2 } from "lucide-react";
+import { Check, ClipboardList, Pencil, Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { useCurrentOrg } from "@/hooks/useOrg";
@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { inr, formatDate } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/purchase-orders")({
   head: () => ({
@@ -59,6 +60,94 @@ const emptyLine = (): LineItem => ({ product_id: "", quantity: "1", unit_cost: "
 
 function newPoNumber() {
   return `PO-${Date.now().toString(36).toUpperCase()}`;
+}
+
+// The lifecycle stages the app's own actions actually walk a PO through.
+// (`pending_approval` and `cancelled` exist in the schema but nothing in
+// the UI sets them yet, so they're handled as fallbacks below rather than
+// given their own step.)
+const STAGES = [
+  { key: "draft", label: "Draft" },
+  { key: "approved", label: "Approved" },
+  { key: "sent", label: "Sent" },
+  { key: "received", label: "Received" },
+  { key: "closed", label: "Closed" },
+] as const;
+
+function stageIndex(status: PoStatus) {
+  if (status === "partially_received") return 3; // same column as "Received", shown in-progress
+  if (status === "pending_approval") return 0;
+  const idx = STAGES.findIndex((s) => s.key === status);
+  return idx === -1 ? 0 : idx;
+}
+
+// The one next-step action a PO's current status calls for, surfaced as a
+// prominent primary button instead of being just another item in a row of
+// equally-weighted buttons.
+function primaryAction(status: PoStatus): { label: string; next: PoStatus } | null {
+  switch (status) {
+    case "draft":
+      return { label: "Approve", next: "approved" };
+    case "approved":
+      return { label: "Mark as sent", next: "sent" };
+    case "received":
+      return { label: "Close order", next: "closed" };
+    default:
+      return null;
+  }
+}
+
+function StageStepper({ status }: { status: PoStatus }) {
+  if (status === "cancelled") {
+    return (
+      <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-2 text-sm font-medium text-destructive">
+        This purchase order was cancelled.
+      </div>
+    );
+  }
+
+  const current = stageIndex(status);
+  const inProgress = status === "partially_received";
+  const lastIndex = STAGES.length - 1;
+
+  return (
+    <div className="flex items-start">
+      {STAGES.map((stage, i) => {
+        const complete = i < current || (i === current && i === lastIndex && !inProgress);
+        const active = i === current && !complete;
+        return (
+          <div key={stage.key} className="flex flex-1 items-start last:flex-none">
+            <div className="flex flex-col items-center gap-1">
+              <div
+                className={cn(
+                  "flex size-7 shrink-0 items-center justify-center rounded-full border-2 text-xs font-semibold",
+                  complete
+                    ? "border-signal bg-signal text-signal-foreground"
+                    : active
+                      ? "border-signal text-signal"
+                      : "border-border text-muted-foreground",
+                )}
+              >
+                {complete ? <Check className="size-4" /> : i + 1}
+              </div>
+              <span
+                className={cn(
+                  "whitespace-nowrap text-[11px] font-medium",
+                  complete || active ? "text-foreground" : "text-muted-foreground",
+                )}
+              >
+                {stage.label}
+                {active && inProgress ? " (in progress)" : ""}
+              </span>
+            </div>
+            {i < lastIndex ? (
+              <div className={cn("mt-3.5 h-0.5 flex-1", i < current ? "bg-signal" : "bg-border")} />
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 function PurchaseOrders() {
@@ -558,40 +647,13 @@ function PurchaseOrders() {
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                       {po.status === "draft" ? (
-                        <>
-                          <Button variant="ghost" size="sm" onClick={() => startEdit(po)}>
-                            <Pencil className="size-4" />
-                            Edit
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => updateStatus.mutate({ id: po.id, status: "approved" })}
-                          >
-                            Approve
-                          </Button>
-                        </>
-                      ) : null}
-                      {po.status === "approved" ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => updateStatus.mutate({ id: po.id, status: "sent" })}
-                        >
-                          Mark sent
-                        </Button>
-                      ) : null}
-                      {po.status === "received" ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => updateStatus.mutate({ id: po.id, status: "closed" })}
-                        >
-                          Close
+                        <Button variant="ghost" size="sm" onClick={() => startEdit(po)}>
+                          <Pencil className="size-4" />
+                          Edit
                         </Button>
                       ) : null}
                       <Button
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
                         onClick={() => {
                           setDetailId(po.id);
@@ -600,6 +662,16 @@ function PurchaseOrders() {
                       >
                         View
                       </Button>
+                      {primaryAction(po.status) ? (
+                        <Button
+                          size="sm"
+                          onClick={() =>
+                            updateStatus.mutate({ id: po.id, status: primaryAction(po.status)!.next })
+                          }
+                        >
+                          {primaryAction(po.status)!.label}
+                        </Button>
+                      ) : null}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -610,19 +682,50 @@ function PurchaseOrders() {
       )}
 
       <Dialog open={!!detailId} onOpenChange={(v) => !v && setDetailId(null)}>
-        <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
+        <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{selectedPo?.po_number}</DialogTitle>
-          </DialogHeader>
-          {selectedPo ? (
-            <div className="space-y-4">
-              <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            <DialogTitle className="flex flex-wrap items-center gap-2">
+              {selectedPo?.po_number}
+              {selectedPo ? (
                 <Badge variant={STATUS_VARIANT[selectedPo.status]}>
                   {selectedPo.status.replace("_", " ")}
                 </Badge>
-                <span>{selectedPo.suppliers?.name}</span>
-                <span>·</span>
-                <span>{selectedPo.warehouses?.name}</span>
+              ) : null}
+            </DialogTitle>
+          </DialogHeader>
+          {selectedPo ? (
+            <div className="space-y-5">
+              <StageStepper status={selectedPo.status} />
+
+              <div className="grid gap-3 rounded-lg border border-border bg-muted/30 p-4 text-sm sm:grid-cols-2">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Supplier</p>
+                  <p className="font-medium">{selectedPo.suppliers?.name}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Warehouse</p>
+                  <p className="font-medium">{selectedPo.warehouses?.name}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Order date</p>
+                  <p className="font-medium">{formatDate(selectedPo.order_date)}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Expected delivery
+                  </p>
+                  <p className="font-medium">
+                    {selectedPo.expected_delivery_date
+                      ? formatDate(selectedPo.expected_delivery_date)
+                      : "—"}
+                  </p>
+                </div>
+                {selectedPo.notes ? (
+                  <div className="sm:col-span-2">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Notes</p>
+                    <p className="font-medium">{selectedPo.notes}</p>
+                  </div>
+                ) : null}
               </div>
 
               <Table>
@@ -693,11 +796,62 @@ function PurchaseOrders() {
                 </TableBody>
               </Table>
 
-              <div className="flex items-center justify-between rounded-lg bg-muted/50 px-4 py-3 text-sm">
-                <span className="text-muted-foreground">Total</span>
-                <span className="font-display text-lg font-semibold">
-                  {inr.format(Number(selectedPo.total_amount))}
-                </span>
+              <div className="space-y-1 rounded-lg bg-muted/50 px-4 py-3 text-sm">
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span>Subtotal</span>
+                  <span>{inr.format(Number(selectedPo.subtotal))}</span>
+                </div>
+                {Number(selectedPo.tax_amount) > 0 ? (
+                  <div className="flex items-center justify-between text-muted-foreground">
+                    <span>Tax</span>
+                    <span>{inr.format(Number(selectedPo.tax_amount))}</span>
+                  </div>
+                ) : null}
+                {Number(selectedPo.shipping_amount) > 0 ? (
+                  <div className="flex items-center justify-between text-muted-foreground">
+                    <span>Shipping</span>
+                    <span>{inr.format(Number(selectedPo.shipping_amount))}</span>
+                  </div>
+                ) : null}
+                {Number(selectedPo.discount_amount) > 0 ? (
+                  <div className="flex items-center justify-between text-muted-foreground">
+                    <span>Discount</span>
+                    <span>−{inr.format(Number(selectedPo.discount_amount))}</span>
+                  </div>
+                ) : null}
+                <div className="flex items-center justify-between border-t border-border pt-1.5 font-display text-base font-semibold">
+                  <span>Total</span>
+                  <span>{inr.format(Number(selectedPo.total_amount))}</span>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap justify-end gap-2">
+                {selectedPo.status === "draft" ? (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setDetailId(null);
+                      startEdit(selectedPo);
+                    }}
+                  >
+                    <Pencil className="size-4" />
+                    Edit
+                  </Button>
+                ) : null}
+                {primaryAction(selectedPo.status) ? (
+                  <Button
+                    size="lg"
+                    disabled={updateStatus.isPending}
+                    onClick={() =>
+                      updateStatus.mutate({
+                        id: selectedPo.id,
+                        status: primaryAction(selectedPo.status)!.next,
+                      })
+                    }
+                  >
+                    {primaryAction(selectedPo.status)!.label}
+                  </Button>
+                ) : null}
               </div>
             </div>
           ) : null}
