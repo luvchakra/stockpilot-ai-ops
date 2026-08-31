@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   Boxes,
@@ -10,12 +10,14 @@ import {
   ArrowLeftRight,
   ClipboardList,
   LogOut,
+  Menu,
   User as UserIcon,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useCurrentOrg } from "@/hooks/useOrg";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,6 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
 function initialsFromEmail(email: string | null | undefined) {
@@ -63,15 +66,45 @@ export function AppShell({
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { user } = useAuth();
   const { org, memberships, selectOrg, loading, role } = useCurrentOrg();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
     if (!loading && memberships.length === 0) navigate({ to: "/onboarding" });
   }, [loading, memberships.length, navigate]);
 
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [pathname]);
+
   const signOut = async () => {
     await supabase.auth.signOut();
     navigate({ to: "/auth" });
   };
+
+  const navLinks = (onNavigate?: () => void) => (
+    <nav className="flex flex-1 flex-col gap-1">
+      {NAV.map((item) => {
+        const Icon = item.icon;
+        const active = pathname === item.to;
+        return (
+          <Link
+            key={item.to}
+            to={item.to}
+            onClick={onNavigate}
+            className={cn(
+              "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+              active
+                ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
+            )}
+          >
+            <Icon className="size-4" />
+            {item.label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -81,32 +114,38 @@ export function AppShell({
           <span className="font-display text-lg font-bold tracking-tight">StockPilot</span>
         </Link>
 
-        <nav className="flex flex-1 flex-col gap-1">
-          {NAV.map((item) => {
-            const Icon = item.icon;
-            const active = pathname === item.to;
-            return (
-              <Link
-                key={item.to}
-                to={item.to}
-                className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                  active
-                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                    : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
-                )}
-              >
-                <Icon className="size-4" />
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
+        {navLinks()}
       </aside>
+
+      <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+        <SheetContent side="left" className="flex w-64 flex-col bg-sidebar p-4">
+          <SheetTitle asChild>
+            <Link
+              to="/dashboard"
+              onClick={() => setMobileNavOpen(false)}
+              className="mb-6 flex items-center gap-2 px-2"
+            >
+              <Boxes className="size-5 text-signal" />
+              <span className="font-display text-lg font-bold tracking-tight">StockPilot</span>
+            </Link>
+          </SheetTitle>
+
+          {navLinks(() => setMobileNavOpen(false))}
+        </SheetContent>
+      </Sheet>
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-10 border-b border-border bg-background/85 backdrop-blur">
           <div className="flex items-center gap-3 px-4 py-4 md:px-8">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="shrink-0 md:hidden"
+              onClick={() => setMobileNavOpen(true)}
+            >
+              <Menu className="size-5" />
+              <span className="sr-only">Open navigation</span>
+            </Button>
             <div className="min-w-0 flex-1">
               <h1 className="font-display text-xl font-bold tracking-tight">{title}</h1>
               {description ? (
@@ -136,7 +175,8 @@ export function AppShell({
               {actions}
             </div>
             {/* Always pinned to the top-right corner, independent of how much
-                else is in the header — never wraps or scrolls away. */}
+                else is in the header (including the mobile menu button) —
+                never wraps or scrolls away. */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="shrink-0 rounded-full outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
@@ -163,22 +203,6 @@ export function AppShell({
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-          <nav className="flex gap-1 overflow-x-auto border-t border-border px-2 py-2 md:hidden">
-            {NAV.map((item) => (
-              <Link
-                key={item.to}
-                to={item.to}
-                className={cn(
-                  "whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium",
-                  pathname === item.to
-                    ? "bg-secondary text-foreground"
-                    : "text-muted-foreground",
-                )}
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
         </header>
 
         <main className="flex-1 px-4 py-6 md:px-8">{children}</main>
