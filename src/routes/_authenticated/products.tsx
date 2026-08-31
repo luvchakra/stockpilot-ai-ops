@@ -9,6 +9,7 @@ import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -42,6 +43,9 @@ export const Route = createFileRoute("/_authenticated/products")({
 const emptyForm = {
   sku: "",
   name: "",
+  brand: "",
+  barcode: "",
+  description: "",
   category: "",
   supplier_id: "",
   unit: "pcs",
@@ -117,6 +121,9 @@ function Products() {
       const payload = {
         sku: form.sku,
         name: form.name,
+        brand: form.brand || null,
+        barcode: form.barcode || null,
+        description: form.description || null,
         category_id,
         supplier_id: form.supplier_id || null,
         unit: form.unit,
@@ -149,6 +156,9 @@ function Products() {
     setForm({
       sku: p.sku,
       name: p.name,
+      brand: p.brand ?? "",
+      barcode: p.barcode ?? "",
+      description: p.description ?? "",
       category: p.categories?.name ?? "",
       supplier_id: p.supplier_id ?? "",
       unit: p.unit,
@@ -219,6 +229,23 @@ function Products() {
                     required
                     value={form.name}
                     onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="p-brand">Brand</Label>
+                  <Input
+                    id="p-brand"
+                    value={form.brand}
+                    onChange={(e) => setForm((f) => ({ ...f, brand: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="p-barcode">Barcode</Label>
+                  <Input
+                    id="p-barcode"
+                    value={form.barcode}
+                    onChange={(e) => setForm((f) => ({ ...f, barcode: e.target.value }))}
+                    placeholder="EAN / UPC / Code128"
                   />
                 </div>
                 <div className="space-y-2">
@@ -317,6 +344,15 @@ function Products() {
                   />
                 </div>
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="p-description">Description</Label>
+                <Textarea
+                  id="p-description"
+                  rows={3}
+                  value={form.description}
+                  onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                />
+              </div>
               <DialogFooter>
                 <Button type="submit" disabled={saveProduct.isPending}>
                   {saveProduct.isPending
@@ -348,6 +384,7 @@ function Products() {
               <TableRow>
                 <TableHead>SKU</TableHead>
                 <TableHead>Name</TableHead>
+                <TableHead>Brand</TableHead>
                 <TableHead>Category</TableHead>
                 <TableHead>Supplier</TableHead>
                 <TableHead className="text-right">Cost</TableHead>
@@ -361,6 +398,7 @@ function Products() {
                 <TableRow key={p.id}>
                   <TableCell className="font-mono text-xs">{p.sku}</TableCell>
                   <TableCell className="font-medium">{p.name}</TableCell>
+                  <TableCell>{p.brand ?? "—"}</TableCell>
                   <TableCell>{p.categories?.name ?? "—"}</TableCell>
                   <TableCell>{p.suppliers?.name ?? "—"}</TableCell>
                   <TableCell className="text-right">{inr.format(Number(p.cost_price))}</TableCell>
