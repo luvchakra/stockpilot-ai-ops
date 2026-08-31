@@ -1,5 +1,4 @@
-import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -7,6 +6,7 @@ export type Organization = Database["public"]["Tables"]["organizations"]["Row"];
 export type OrgRole = Database["public"]["Enums"]["org_role"];
 
 const STORAGE_KEY = "stockpilot.org";
+const SELECTED_ORG_QUERY_KEY = ["selected-org-id"] as const;
 
 export type Membership = { role: OrgRole; organizations: Organization };
 
@@ -24,22 +24,30 @@ export function useMemberships() {
   });
 }
 
+// Writes the active workspace id to both localStorage (so it survives a
+// reload) and the shared query cache (so every useCurrentOrg() call site —
+// the header switcher, every page, onboarding — sees the change
+// immediately, instead of each holding its own independent copy).
+export function setActiveOrgId(queryClient: QueryClient, id: string) {
+  if (typeof window !== "undefined") window.localStorage.setItem(STORAGE_KEY, id);
+  queryClient.setQueryData(SELECTED_ORG_QUERY_KEY, id);
+}
+
 export function useCurrentOrg() {
   const memberships = useMemberships();
-  const [orgId, setOrgId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    if (typeof window !== "undefined") setOrgId(window.localStorage.getItem(STORAGE_KEY));
-  }, []);
+  const selectedOrgId = useQuery({
+    queryKey: SELECTED_ORG_QUERY_KEY,
+    queryFn: () => (typeof window !== "undefined" ? window.localStorage.getItem(STORAGE_KEY) : null),
+    staleTime: Infinity,
+  });
 
   const list = memberships.data ?? [];
-  const active =
-    list.find((m) => m.organizations.id === orgId) ?? list[0] ?? undefined;
+  const orgId = selectedOrgId.data ?? null;
+  const active = list.find((m) => m.organizations.id === orgId) ?? list[0] ?? undefined;
 
-  const selectOrg = (id: string) => {
-    window.localStorage.setItem(STORAGE_KEY, id);
-    setOrgId(id);
-  };
+  const selectOrg = (id: string) => setActiveOrgId(queryClient, id);
 
   return {
     loading: memberships.isLoading,

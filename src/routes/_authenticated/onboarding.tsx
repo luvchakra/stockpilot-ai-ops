@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { setActiveOrgId } from "@/hooks/useOrg";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,6 +42,7 @@ function slugify(value: string) {
 
 function Onboarding() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [name, setName] = useState("");
   const [industry, setIndustry] = useState("");
   const [warehouse, setWarehouse] = useState("Main Warehouse");
@@ -74,7 +77,8 @@ function Onboarding() {
       });
       if (whError) throw whError;
 
-      window.localStorage.setItem("stockpilot.org", org.id);
+      setActiveOrgId(queryClient, org.id);
+      queryClient.invalidateQueries({ queryKey: ["memberships"] });
       toast.success("Workspace ready");
       navigate({ to: "/dashboard" });
     } catch (err) {
