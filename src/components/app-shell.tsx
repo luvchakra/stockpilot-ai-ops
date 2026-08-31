@@ -6,14 +6,17 @@ import {
   ArrowLeft,
   Bell,
   Boxes,
+  Check,
   ClipboardList,
   LayoutDashboard,
   LogOut,
   Menu,
+  Monitor,
   Moon,
   Package,
   Plus,
   Search,
+  Sun,
   Truck,
   ArrowLeftRight,
   Warehouse,
@@ -23,6 +26,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useCurrentOrg } from "@/hooks/useOrg";
+import { useTheme, type ThemeMode } from "@/hooks/useTheme";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -83,6 +87,7 @@ export function AppShell({
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { user } = useAuth();
   const { org, memberships, selectOrg, loading, role } = useCurrentOrg();
+  const { mode, setMode } = useTheme();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
@@ -150,14 +155,36 @@ export function AppShell({
     </nav>
   );
 
+  const ThemeIcon = mode === "light" ? Sun : mode === "dark" ? Moon : Monitor;
+  const themeLabel = mode === "light" ? "Light" : mode === "dark" ? "Dark" : "System";
+
   const sidebarBody = (onNavigate?: () => void) => (
     <>
       {navLinks(onNavigate)}
-      <div className="mt-4 flex shrink-0 cursor-default items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground">
-        <Moon className="size-4" />
-        Dark
-        <ChevronDown className="ml-auto size-4" />
-      </div>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button className="mt-4 flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground outline-none transition-colors hover:bg-sidebar-accent/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
+            <ThemeIcon className="size-4" />
+            {themeLabel}
+            <ChevronDown className="ml-auto size-4" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" side="top">
+          {(
+            [
+              { value: "light", label: "Light", icon: Sun },
+              { value: "dark", label: "Dark", icon: Moon },
+              { value: "system", label: "System", icon: Monitor },
+            ] satisfies { value: ThemeMode; label: string; icon: typeof Sun }[]
+          ).map((opt) => (
+            <DropdownMenuItem key={opt.value} onClick={() => setMode(opt.value)}>
+              <opt.icon className="size-4" />
+              {opt.label}
+              {mode === opt.value ? <Check className="ml-auto size-4" /> : null}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </>
   );
 
