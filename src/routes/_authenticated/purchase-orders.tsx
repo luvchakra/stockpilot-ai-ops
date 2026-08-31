@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ClipboardList, Plus, Trash2 } from "lucide-react";
+import { ClipboardList, Pencil, Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { useCurrentOrg } from "@/hooks/useOrg";
@@ -66,7 +66,8 @@ function PurchaseOrders() {
   const orgId = org?.id;
   const queryClient = useQueryClient();
 
-  const [createOpen, setCreateOpen] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [supplierId, setSupplierId] = useState("");
   const [warehouseId, setWarehouseId] = useState("");
   const [expectedDelivery, setExpectedDelivery] = useState("");
@@ -176,34 +177,52 @@ function PurchaseOrders() {
     setLines([emptyLine()]);
   };
 
-  const createPo = useMutation({
+  const savePo = useMutation({
     mutationFn: async () => {
       const validLines = lines.filter((l) => l.product_id && Number(l.quantity) > 0);
       if (validLines.length === 0) throw new Error("Add at least one line item");
 
-      const { data: po, error: poError } = await supabase
-        .from("purchase_orders")
-        .insert({
-          org_id: orgId!,
-          supplier_id: supplierId,
-          warehouse_id: warehouseId,
-          po_number: newPoNumber(),
-          expected_delivery_date: expectedDelivery || null,
-          notes: notes || null,
-          subtotal,
-          tax_amount: Number(taxAmount) || 0,
-          discount_amount: Number(discountAmount) || 0,
-          shipping_amount: Number(shippingAmount) || 0,
-          total_amount: total,
-        })
-        .select()
-        .single();
-      if (poError) throw poError;
+      const poPayload = {
+        supplier_id: supplierId,
+        warehouse_id: warehouseId,
+        expected_delivery_date: expectedDelivery || null,
+        notes: notes || null,
+        subtotal,
+        tax_amount: Number(taxAmount) || 0,
+        discount_amount: Number(discountAmount) || 0,
+        shipping_amount: Number(shippingAmount) || 0,
+        total_amount: total,
+      };
+
+      let poId = editingId;
+      if (editingId) {
+        const { error: poError } = await supabase
+          .from("purchase_orders")
+          .update(poPayload)
+          .eq("id", editingId);
+        if (poError) throw poError;
+
+        // Draft-only edit, so nothing has been received against these items
+        // yet — safe to replace the whole set rather than diff it.
+        const { error: delError } = await supabase
+          .from("purchase_order_items")
+          .delete()
+          .eq("purchase_order_id", editingId);
+        if (delError) throw delError;
+      } else {
+        const { data: po, error: poError } = await supabase
+          .from("purchase_orders")
+          .insert({ org_id: orgId!, po_number: newPoNumber(), ...poPayload })
+          .select()
+          .single();
+        if (poError) throw poError;
+        poId = po.id;
+      }
 
       const { error: itemsError } = await supabase.from("purchase_order_items").insert(
         validLines.map((l) => ({
           org_id: orgId!,
-          purchase_order_id: po.id,
+          purchase_order_id: poId!,
           product_id: l.product_id,
           quantity: Number(l.quantity),
           unit_cost: Number(l.unit_cost) || 0,
@@ -212,13 +231,45 @@ function PurchaseOrders() {
       if (itemsError) throw itemsError;
     },
     onSuccess: () => {
-      toast.success("Purchase order created");
-      setCreateOpen(false);
+      toast.success(editingId ? "Purchase order updated" : "Purchase order created");
+      setFormOpen(false);
       resetCreateForm();
+      if (editingId) queryClient.invalidateQueries({ queryKey: ["purchase_order_items", editingId] });
+      setEditingId(null);
       invalidate();
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "Could not create purchase order"),
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Could not save purchase order"),
   });
+
+  const startEdit = async (po: NonNullable<typeof purchaseOrders.data>[number]) => {
+    const { data: items, error } = await supabase
+      .from("purchase_order_items")
+      .select("product_id, quantity, unit_cost")
+      .eq("purchase_order_id", po.id)
+      .order("created_at");
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setSupplierId(po.supplier_id);
+    setWarehouseId(po.warehouse_id);
+    setExpectedDelivery(po.expected_delivery_date ?? "");
+    setNotes(po.notes ?? "");
+    setTaxAmount(String(po.tax_amount ?? 0));
+    setDiscountAmount(String(po.discount_amount ?? 0));
+    setShippingAmount(String(po.shipping_amount ?? 0));
+    setLines(
+      items && items.length > 0
+        ? items.map((it) => ({
+            product_id: it.product_id,
+            quantity: String(it.quantity),
+            unit_cost: String(it.unit_cost),
+          }))
+        : [emptyLine()],
+    );
+    setEditingId(po.id);
+    setFormOpen(true);
+  };
 
   const updateStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: PoStatus }) => {
@@ -250,22 +301,28 @@ function PurchaseOrders() {
       title="Purchase Orders"
       description="Create, approve and receive purchase orders."
       actions={
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <Dialog open={formOpen} onOpenChange={setFormOpen}>
           <DialogTrigger asChild>
-            <Button size="sm">
+            <Button
+              size="sm"
+              onClick={() => {
+                resetCreateForm();
+                setEditingId(null);
+              }}
+            >
               <Plus className="size-4" />
               New purchase order
             </Button>
           </DialogTrigger>
           <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>New purchase order</DialogTitle>
+              <DialogTitle>{editingId ? "Edit purchase order" : "New purchase order"}</DialogTitle>
             </DialogHeader>
             <form
               className="space-y-4"
               onSubmit={(e) => {
                 e.preventDefault();
-                createPo.mutate();
+                savePo.mutate();
               }}
             >
               <div className="grid gap-4 sm:grid-cols-2">
@@ -447,9 +504,13 @@ function PurchaseOrders() {
               <DialogFooter>
                 <Button
                   type="submit"
-                  disabled={createPo.isPending || !supplierId || !warehouseId}
+                  disabled={savePo.isPending || !supplierId || !warehouseId}
                 >
-                  {createPo.isPending ? "Creating…" : "Create purchase order"}
+                  {savePo.isPending
+                    ? "Saving…"
+                    : editingId
+                      ? "Save changes"
+                      : "Create purchase order"}
                 </Button>
               </DialogFooter>
             </form>
@@ -497,13 +558,19 @@ function PurchaseOrders() {
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                       {po.status === "draft" ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => updateStatus.mutate({ id: po.id, status: "approved" })}
-                        >
-                          Approve
-                        </Button>
+                        <>
+                          <Button variant="ghost" size="sm" onClick={() => startEdit(po)}>
+                            <Pencil className="size-4" />
+                            Edit
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => updateStatus.mutate({ id: po.id, status: "approved" })}
+                          >
+                            Approve
+                          </Button>
+                        </>
                       ) : null}
                       {po.status === "approved" ? (
                         <Button
