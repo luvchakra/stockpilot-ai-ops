@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { INDIAN_STATES, isValidGstin } from "@/lib/gst";
 
 const CURRENCIES = [
   { value: "INR", label: "INR — Indian Rupee" },
@@ -62,6 +63,9 @@ function Account() {
   const [orgIndustry, setOrgIndustry] = useState("");
   const [orgCurrency, setOrgCurrency] = useState("INR");
   const [orgTimezone, setOrgTimezone] = useState("Asia/Kolkata");
+  const [orgGstin, setOrgGstin] = useState("");
+  const [orgState, setOrgState] = useState("");
+  const [orgGstType, setOrgGstType] = useState("regular");
   const [orgBusy, setOrgBusy] = useState(false);
 
   const profile = useQuery({
@@ -88,6 +92,9 @@ function Account() {
       setOrgIndustry(org.industry ?? "");
       setOrgCurrency(org.currency);
       setOrgTimezone(org.timezone);
+      setOrgGstin(org.gstin ?? "");
+      setOrgState(org.state ?? "");
+      setOrgGstType(org.gst_registration_type);
     }
   }, [org]);
 
@@ -109,6 +116,11 @@ function Account() {
   const saveOrg = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!org) return;
+    const trimmedGstin = orgGstin.trim().toUpperCase();
+    if (orgGstType !== "unregistered" && trimmedGstin && !isValidGstin(trimmedGstin)) {
+      toast.error("That GSTIN doesn't look valid — check the 15 characters and try again.");
+      return;
+    }
     setOrgBusy(true);
     const { error } = await supabase
       .from("organizations")
@@ -117,6 +129,9 @@ function Account() {
         industry: orgIndustry || null,
         currency: orgCurrency,
         timezone: orgTimezone,
+        gstin: trimmedGstin || null,
+        state: orgState || null,
+        gst_registration_type: orgGstType,
       })
       .eq("id", org.id);
     setOrgBusy(false);
@@ -235,6 +250,83 @@ function Account() {
                   </p>
                   <p className="mt-2 text-xs text-muted-foreground">
                     Only workspace owners and admins can edit these details.
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {org ? (
+          <Card className="max-w-lg">
+            <CardHeader>
+              <CardTitle>GST profile</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {!org.gstin && orgGstType !== "unregistered" ? (
+                <p className="mb-4 rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn">
+                  No GSTIN on file yet — purchase orders can't split CGST/SGST vs. IGST correctly
+                  until your workspace's GSTIN and state are set.
+                </p>
+              ) : null}
+              {canEditOrg ? (
+                <form onSubmit={saveOrg} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="org-gst-type">GST registration type</Label>
+                    <Select value={orgGstType} onValueChange={setOrgGstType}>
+                      <SelectTrigger id="org-gst-type">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="regular">Regular</SelectItem>
+                        <SelectItem value="composition">Composition scheme</SelectItem>
+                        <SelectItem value="unregistered">Unregistered</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="org-gstin">GSTIN</Label>
+                      <Input
+                        id="org-gstin"
+                        value={orgGstin}
+                        onChange={(e) => setOrgGstin(e.target.value.toUpperCase())}
+                        placeholder="22AAAAA0000A1Z5"
+                        maxLength={15}
+                        disabled={orgGstType === "unregistered"}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="org-state">State (for GST place of supply)</Label>
+                      <Select value={orgState} onValueChange={setOrgState}>
+                        <SelectTrigger id="org-state">
+                          <SelectValue placeholder="Select state" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {INDIAN_STATES.map((s) => (
+                            <SelectItem key={s.code} value={s.name}>
+                              {s.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <Button type="submit" disabled={orgBusy}>
+                    {orgBusy ? "Saving…" : "Save changes"}
+                  </Button>
+                </form>
+              ) : (
+                <div className="space-y-1 text-sm">
+                  <p>
+                    <span className="text-muted-foreground">GSTIN:</span> {org.gstin ?? "—"}
+                  </p>
+                  <p>
+                    <span className="text-muted-foreground">State:</span> {org.state ?? "—"}
+                  </p>
+                  <p>
+                    <span className="text-muted-foreground">Registration type:</span>{" "}
+                    {org.gst_registration_type}
                   </p>
                 </div>
               )}

@@ -21,6 +21,7 @@ import { Route as AuthenticatedWarehousesRouteImport } from './routes/_authentic
 import { Route as AuthenticatedSuppliersRouteImport } from './routes/_authenticated/suppliers'
 import { Route as AuthenticatedAlertsRouteImport } from './routes/_authenticated/alerts'
 import { Route as AuthenticatedPurchaseOrdersRouteImport } from './routes/_authenticated/purchase-orders'
+import { Route as AuthenticatedGstFilingRouteImport } from './routes/_authenticated/gst-filing'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -81,6 +82,11 @@ const AuthenticatedPurchaseOrdersRoute = AuthenticatedPurchaseOrdersRouteImport.
   path: '/purchase-orders',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedGstFilingRoute = AuthenticatedGstFilingRouteImport.update({
+  id: '/gst-filing',
+  path: '/gst-filing',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -94,6 +100,7 @@ export interface FileRoutesByFullPath {
   '/suppliers': typeof AuthenticatedSuppliersRoute
   '/alerts': typeof AuthenticatedAlertsRoute
   '/purchase-orders': typeof AuthenticatedPurchaseOrdersRoute
+  '/gst-filing': typeof AuthenticatedGstFilingRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -107,6 +114,7 @@ export interface FileRoutesByTo {
   '/suppliers': typeof AuthenticatedSuppliersRoute
   '/alerts': typeof AuthenticatedAlertsRoute
   '/purchase-orders': typeof AuthenticatedPurchaseOrdersRoute
+  '/gst-filing': typeof AuthenticatedGstFilingRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -122,6 +130,7 @@ export interface FileRoutesById {
   '/_authenticated/suppliers': typeof AuthenticatedSuppliersRoute
   '/_authenticated/alerts': typeof AuthenticatedAlertsRoute
   '/_authenticated/purchase-orders': typeof AuthenticatedPurchaseOrdersRoute
+  '/_authenticated/gst-filing': typeof AuthenticatedGstFilingRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -137,6 +146,7 @@ export interface FileRouteTypes {
     | '/suppliers'
     | '/alerts'
     | '/purchase-orders'
+    | '/gst-filing'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -150,6 +160,7 @@ export interface FileRouteTypes {
     | '/suppliers'
     | '/alerts'
     | '/purchase-orders'
+    | '/gst-filing'
   id:
     | '__root__'
     | '/'
@@ -164,6 +175,7 @@ export interface FileRouteTypes {
     | '/_authenticated/suppliers'
     | '/_authenticated/alerts'
     | '/_authenticated/purchase-orders'
+    | '/_authenticated/gst-filing'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -258,6 +270,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPurchaseOrdersRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/gst-filing': {
+      id: '/_authenticated/gst-filing'
+      path: '/gst-filing'
+      fullPath: '/gst-filing'
+      preLoaderRoute: typeof AuthenticatedGstFilingRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
@@ -271,6 +290,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedSuppliersRoute: typeof AuthenticatedSuppliersRoute
   AuthenticatedAlertsRoute: typeof AuthenticatedAlertsRoute
   AuthenticatedPurchaseOrdersRoute: typeof AuthenticatedPurchaseOrdersRoute
+  AuthenticatedGstFilingRoute: typeof AuthenticatedGstFilingRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -283,6 +303,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSuppliersRoute: AuthenticatedSuppliersRoute,
   AuthenticatedAlertsRoute: AuthenticatedAlertsRoute,
   AuthenticatedPurchaseOrdersRoute: AuthenticatedPurchaseOrdersRoute,
+  AuthenticatedGstFilingRoute: AuthenticatedGstFilingRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =

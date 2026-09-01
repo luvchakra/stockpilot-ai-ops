@@ -27,8 +27,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { inr } from "@/lib/format";
+import { GST_RATE_SLABS } from "@/lib/gst";
 
 export const Route = createFileRoute("/_authenticated/products")({
   head: () => ({
@@ -292,14 +300,22 @@ function Products() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="p-tax">GST rate (%)</Label>
-                  <Input
-                    id="p-tax"
-                    type="number"
-                    min={0}
+                  <Label htmlFor="p-tax">GST rate</Label>
+                  <Select
                     value={form.tax_rate}
-                    onChange={(e) => setForm((f) => ({ ...f, tax_rate: e.target.value }))}
-                  />
+                    onValueChange={(v) => setForm((f) => ({ ...f, tax_rate: v }))}
+                  >
+                    <SelectTrigger id="p-tax">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {GST_RATE_SLABS.map((rate) => (
+                        <SelectItem key={rate} value={String(rate)}>
+                          {rate}%
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="p-cost">Cost price</Label>
@@ -402,9 +418,13 @@ function Products() {
                   <TableCell>{p.categories?.name ?? "—"}</TableCell>
                   <TableCell>{p.suppliers?.name ?? "—"}</TableCell>
                   <TableCell className="text-right">{inr.format(Number(p.cost_price))}</TableCell>
-                  <TableCell className="text-right">{inr.format(Number(p.selling_price))}</TableCell>
+                  <TableCell className="text-right">
+                    {inr.format(Number(p.selling_price))}
+                  </TableCell>
                   <TableCell>
-                    <Badge variant={p.status === "active" ? "default" : "secondary"}>{p.status}</Badge>
+                    <Badge variant={p.status === "active" ? "default" : "secondary"}>
+                      {p.status}
+                    </Badge>
                   </TableCell>
                   <TableCell className="text-right">
                     <Button variant="ghost" size="sm" onClick={() => startEdit(p)}>

@@ -155,11 +155,14 @@ export type Database = {
           created_at: string
           created_by: string
           currency: string
+          gst_registration_type: string
+          gstin: string | null
           id: string
           industry: string | null
           name: string
           plan: string
           slug: string
+          state: string | null
           timezone: string
           updated_at: string
         }
@@ -167,11 +170,14 @@ export type Database = {
           created_at?: string
           created_by?: string
           currency?: string
+          gst_registration_type?: string
+          gstin?: string | null
           id?: string
           industry?: string | null
           name: string
           plan?: string
           slug: string
+          state?: string | null
           timezone?: string
           updated_at?: string
         }
@@ -179,11 +185,14 @@ export type Database = {
           created_at?: string
           created_by?: string
           currency?: string
+          gst_registration_type?: string
+          gstin?: string | null
           id?: string
           industry?: string | null
           name?: string
           plan?: string
           slug?: string
+          state?: string | null
           timezone?: string
           updated_at?: string
         }
@@ -312,33 +321,45 @@ export type Database = {
       }
       purchase_order_items: {
         Row: {
+          cgst_amount: number
           created_at: string
           id: string
+          igst_amount: number
           org_id: string
           product_id: string
           purchase_order_id: string
           quantity: number
           received_quantity: number
+          sgst_amount: number
+          tax_rate: number
           unit_cost: number
         }
         Insert: {
+          cgst_amount?: number
           created_at?: string
           id?: string
+          igst_amount?: number
           org_id: string
           product_id: string
           purchase_order_id: string
           quantity: number
           received_quantity?: number
+          sgst_amount?: number
+          tax_rate?: number
           unit_cost?: number
         }
         Update: {
+          cgst_amount?: number
           created_at?: string
           id?: string
+          igst_amount?: number
           org_id?: string
           product_id?: string
           purchase_order_id?: string
           quantity?: number
           received_quantity?: number
+          sgst_amount?: number
+          tax_rate?: number
           unit_cost?: number
         }
         Relationships: [
@@ -367,15 +388,18 @@ export type Database = {
       }
       purchase_orders: {
         Row: {
+          cgst_amount: number
           created_at: string
           created_by: string
           discount_amount: number
           expected_delivery_date: string | null
           id: string
+          igst_amount: number
           notes: string | null
           order_date: string
           org_id: string
           po_number: string
+          sgst_amount: number
           shipping_amount: number
           status: Database["public"]["Enums"]["po_status"]
           subtotal: number
@@ -386,15 +410,18 @@ export type Database = {
           warehouse_id: string
         }
         Insert: {
+          cgst_amount?: number
           created_at?: string
           created_by?: string
           discount_amount?: number
           expected_delivery_date?: string | null
           id?: string
+          igst_amount?: number
           notes?: string | null
           order_date?: string
           org_id: string
           po_number: string
+          sgst_amount?: number
           shipping_amount?: number
           status?: Database["public"]["Enums"]["po_status"]
           subtotal?: number
@@ -405,15 +432,18 @@ export type Database = {
           warehouse_id: string
         }
         Update: {
+          cgst_amount?: number
           created_at?: string
           created_by?: string
           discount_amount?: number
           expected_delivery_date?: string | null
           id?: string
+          igst_amount?: number
           notes?: string | null
           order_date?: string
           org_id?: string
           po_number?: string
+          sgst_amount?: number
           shipping_amount?: number
           status?: Database["public"]["Enums"]["po_status"]
           subtotal?: number

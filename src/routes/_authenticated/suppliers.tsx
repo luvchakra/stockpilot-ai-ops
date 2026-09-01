@@ -19,7 +19,22 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { INDIAN_STATES, isValidGstin } from "@/lib/gst";
 
 export const Route = createFileRoute("/_authenticated/suppliers")({
   head: () => ({
@@ -71,13 +86,17 @@ function Suppliers() {
 
   const saveSupplier = useMutation({
     mutationFn: async () => {
+      const gstin = form.gst_number.trim().toUpperCase();
+      if (gstin && !isValidGstin(gstin)) {
+        throw new Error("That GSTIN doesn't look valid — check the 15 characters and try again.");
+      }
       const payload = {
         name: form.name,
         code: form.code || null,
         contact_person: form.contact_person || null,
         email: form.email || null,
         phone: form.phone || null,
-        gst_number: form.gst_number || null,
+        gst_number: gstin || null,
         address: form.address || null,
         city: form.city || null,
         state: form.state || null,
@@ -211,7 +230,11 @@ function Suppliers() {
                   <Input
                     id="sup-gst"
                     value={form.gst_number}
-                    onChange={(e) => setForm((f) => ({ ...f, gst_number: e.target.value }))}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, gst_number: e.target.value.toUpperCase() }))
+                    }
+                    placeholder="22AAAAA0000A1Z5"
+                    maxLength={15}
                   />
                 </div>
                 <div className="space-y-2">
@@ -231,12 +254,22 @@ function Suppliers() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="sup-state">State</Label>
-                  <Input
-                    id="sup-state"
+                  <Label htmlFor="sup-state">State (for GST place of supply)</Label>
+                  <Select
                     value={form.state}
-                    onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))}
-                  />
+                    onValueChange={(v) => setForm((f) => ({ ...f, state: v }))}
+                  >
+                    <SelectTrigger id="sup-state">
+                      <SelectValue placeholder="Select state" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {INDIAN_STATES.map((s) => (
+                        <SelectItem key={s.code} value={s.name}>
+                          {s.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="sup-terms">Payment terms</Label>

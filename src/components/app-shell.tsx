@@ -15,6 +15,7 @@ import {
   Moon,
   Package,
   Plus,
+  Receipt,
   Search,
   Sun,
   Truck,
@@ -66,6 +67,7 @@ const NAV_PRIMARY = [
 const NAV_SECONDARY = [
   { to: "/purchase-orders", label: "Purchase Orders", icon: ClipboardList },
   { to: "/alerts", label: "Alerts", icon: AlertTriangle },
+  { to: "/gst-filing", label: "GST Filing", icon: Receipt },
 ] as const;
 
 export function AppShell({
