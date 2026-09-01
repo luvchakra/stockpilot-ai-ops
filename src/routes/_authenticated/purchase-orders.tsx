@@ -27,9 +27,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { inr, formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { GST_RATE_SLABS, aggregateGst, computeLineGst, resolveStateCode } from "@/lib/gst";
 
 export const Route = createFileRoute("/_authenticated/purchase-orders")({
   head: () => ({
@@ -54,9 +62,14 @@ const STATUS_VARIANT: Record<PoStatus, "default" | "secondary" | "destructive" |
   cancelled: "destructive",
 };
 
-type LineItem = { product_id: string; quantity: string; unit_cost: string };
+type LineItem = { product_id: string; quantity: string; unit_cost: string; tax_rate: string };
 
-const emptyLine = (): LineItem => ({ product_id: "", quantity: "1", unit_cost: "0" });
+const emptyLine = (): LineItem => ({
+  product_id: "",
+  quantity: "1",
+  unit_cost: "0",
+  tax_rate: "0",
+});
 
 function newPoNumber() {
   return `PO-${Date.now().toString(36).toUpperCase()}`;
@@ -161,7 +174,6 @@ function PurchaseOrders() {
   const [warehouseId, setWarehouseId] = useState("");
   const [expectedDelivery, setExpectedDelivery] = useState("");
   const [notes, setNotes] = useState("");
-  const [taxAmount, setTaxAmount] = useState("0");
   const [discountAmount, setDiscountAmount] = useState("0");
   const [shippingAmount, setShippingAmount] = useState("0");
   const [lines, setLines] = useState<LineItem[]>([emptyLine()]);
@@ -189,12 +201,12 @@ function PurchaseOrders() {
   });
 
   const suppliers = useQuery({
-    queryKey: ["suppliers", orgId, "active"],
+    queryKey: ["suppliers", orgId, "active", "gst"],
     enabled: !!orgId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("suppliers")
-        .select("id, name")
+        .select("id, name, state, gst_number")
         .eq("org_id", orgId!)
         .eq("is_active", true)
         .order("name");
@@ -219,12 +231,12 @@ function PurchaseOrders() {
   });
 
   const products = useQuery({
-    queryKey: ["products", orgId, "active"],
+    queryKey: ["products", orgId, "active", "gst"],
     enabled: !!orgId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
-        .select("id, name, sku, cost_price")
+        .select("id, name, sku, cost_price, tax_rate")
         .eq("org_id", orgId!)
         .eq("status", "active")
         .order("name");
@@ -248,19 +260,33 @@ function PurchaseOrders() {
   });
 
   const selectedPo = purchaseOrders.data?.find((po) => po.id === detailId);
+  const selectedSupplier = suppliers.data?.find((s) => s.id === supplierId);
+  const buyerStateCode = resolveStateCode(org?.state, org?.gstin);
+  const sellerStateCode = resolveStateCode(selectedSupplier?.state, selectedSupplier?.gst_number);
 
-  const subtotal = lines.reduce(
+  // Same filter the save mutation applies, computed once so the live total
+  // shown here always matches what actually gets persisted.
+  const validLines = lines.filter((l) => l.product_id && Number(l.quantity) > 0);
+  const lineGstFor = (l: LineItem) =>
+    computeLineGst({
+      taxableValue: (Number(l.quantity) || 0) * (Number(l.unit_cost) || 0),
+      gstRatePercent: Number(l.tax_rate) || 0,
+      sellerStateCode,
+      buyerStateCode,
+    });
+  const subtotal = validLines.reduce(
     (sum, l) => sum + (Number(l.quantity) || 0) * (Number(l.unit_cost) || 0),
     0,
   );
-  const total = subtotal + (Number(taxAmount) || 0) + (Number(shippingAmount) || 0) - (Number(discountAmount) || 0);
+  const gstTotals = aggregateGst(validLines.map(lineGstFor));
+  const total =
+    subtotal + gstTotals.totalTax + (Number(shippingAmount) || 0) - (Number(discountAmount) || 0);
 
   const resetCreateForm = () => {
     setSupplierId("");
     setWarehouseId("");
     setExpectedDelivery("");
     setNotes("");
-    setTaxAmount("0");
     setDiscountAmount("0");
     setShippingAmount("0");
     setLines([emptyLine()]);
@@ -268,7 +294,6 @@ function PurchaseOrders() {
 
   const savePo = useMutation({
     mutationFn: async () => {
-      const validLines = lines.filter((l) => l.product_id && Number(l.quantity) > 0);
       if (validLines.length === 0) throw new Error("Add at least one line item");
 
       const poPayload = {
@@ -277,7 +302,10 @@ function PurchaseOrders() {
         expected_delivery_date: expectedDelivery || null,
         notes: notes || null,
         subtotal,
-        tax_amount: Number(taxAmount) || 0,
+        tax_amount: gstTotals.totalTax,
+        cgst_amount: gstTotals.cgstAmount,
+        sgst_amount: gstTotals.sgstAmount,
+        igst_amount: gstTotals.igstAmount,
         discount_amount: Number(discountAmount) || 0,
         shipping_amount: Number(shippingAmount) || 0,
         total_amount: total,
@@ -309,13 +337,20 @@ function PurchaseOrders() {
       }
 
       const { error: itemsError } = await supabase.from("purchase_order_items").insert(
-        validLines.map((l) => ({
-          org_id: orgId!,
-          purchase_order_id: poId!,
-          product_id: l.product_id,
-          quantity: Number(l.quantity),
-          unit_cost: Number(l.unit_cost) || 0,
-        })),
+        validLines.map((l) => {
+          const breakup = lineGstFor(l);
+          return {
+            org_id: orgId!,
+            purchase_order_id: poId!,
+            product_id: l.product_id,
+            quantity: Number(l.quantity),
+            unit_cost: Number(l.unit_cost) || 0,
+            tax_rate: Number(l.tax_rate) || 0,
+            cgst_amount: breakup.cgstAmount,
+            sgst_amount: breakup.sgstAmount,
+            igst_amount: breakup.igstAmount,
+          };
+        }),
       );
       if (itemsError) throw itemsError;
     },
@@ -323,17 +358,19 @@ function PurchaseOrders() {
       toast.success(editingId ? "Purchase order updated" : "Purchase order created");
       setFormOpen(false);
       resetCreateForm();
-      if (editingId) queryClient.invalidateQueries({ queryKey: ["purchase_order_items", editingId] });
+      if (editingId)
+        queryClient.invalidateQueries({ queryKey: ["purchase_order_items", editingId] });
       setEditingId(null);
       invalidate();
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "Could not save purchase order"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : "Could not save purchase order"),
   });
 
   const startEdit = async (po: NonNullable<typeof purchaseOrders.data>[number]) => {
     const { data: items, error } = await supabase
       .from("purchase_order_items")
-      .select("product_id, quantity, unit_cost")
+      .select("product_id, quantity, unit_cost, tax_rate")
       .eq("purchase_order_id", po.id)
       .order("created_at");
     if (error) {
@@ -344,7 +381,6 @@ function PurchaseOrders() {
     setWarehouseId(po.warehouse_id);
     setExpectedDelivery(po.expected_delivery_date ?? "");
     setNotes(po.notes ?? "");
-    setTaxAmount(String(po.tax_amount ?? 0));
     setDiscountAmount(String(po.discount_amount ?? 0));
     setShippingAmount(String(po.shipping_amount ?? 0));
     setLines(
@@ -353,6 +389,7 @@ function PurchaseOrders() {
             product_id: it.product_id,
             quantity: String(it.quantity),
             unit_cost: String(it.unit_cost),
+            tax_rate: String(it.tax_rate ?? 0),
           }))
         : [emptyLine()],
     );
@@ -366,7 +403,8 @@ function PurchaseOrders() {
       if (error) throw error;
     },
     onSuccess: invalidate,
-    onError: (err) => toast.error(err instanceof Error ? err.message : "Could not update purchase order"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : "Could not update purchase order"),
   });
 
   const receiveItem = useMutation({
@@ -489,6 +527,7 @@ function PurchaseOrders() {
                                       ...l,
                                       product_id: v,
                                       unit_cost: product ? String(product.cost_price) : l.unit_cost,
+                                      tax_rate: product ? String(product.tax_rate) : l.tax_rate,
                                     }
                                   : l,
                               ),
@@ -516,7 +555,9 @@ function PurchaseOrders() {
                           value={line.quantity}
                           onChange={(e) =>
                             setLines((ls) =>
-                              ls.map((l, i) => (i === idx ? { ...l, quantity: e.target.value } : l)),
+                              ls.map((l, i) =>
+                                i === idx ? { ...l, quantity: e.target.value } : l,
+                              ),
                             )
                           }
                         />
@@ -530,10 +571,34 @@ function PurchaseOrders() {
                           value={line.unit_cost}
                           onChange={(e) =>
                             setLines((ls) =>
-                              ls.map((l, i) => (i === idx ? { ...l, unit_cost: e.target.value } : l)),
+                              ls.map((l, i) =>
+                                i === idx ? { ...l, unit_cost: e.target.value } : l,
+                              ),
                             )
                           }
                         />
+                      </div>
+                      <div className="w-24 space-y-1">
+                        <Label className="text-xs text-muted-foreground">GST %</Label>
+                        <Select
+                          value={line.tax_rate}
+                          onValueChange={(v) =>
+                            setLines((ls) =>
+                              ls.map((l, i) => (i === idx ? { ...l, tax_rate: v } : l)),
+                            )
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {GST_RATE_SLABS.map((rate) => (
+                              <SelectItem key={rate} value={String(rate)}>
+                                {rate}%
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <Button
                         type="button"
@@ -549,18 +614,36 @@ function PurchaseOrders() {
                 </div>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-3">
-                <div className="space-y-2">
-                  <Label htmlFor="po-tax">Tax</Label>
-                  <Input
-                    id="po-tax"
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={taxAmount}
-                    onChange={(e) => setTaxAmount(e.target.value)}
-                  />
-                </div>
+              {supplierId ? (
+                gstTotals.incomplete ? (
+                  <p className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn">
+                    Can't compute GST for this order yet — set a state on this supplier and on your
+                    workspace's GST profile (Account settings) so CGST/SGST vs. IGST can be
+                    determined.
+                  </p>
+                ) : (
+                  <div className="space-y-1 rounded-lg bg-muted/50 px-4 py-3 text-sm">
+                    <div className="flex items-center justify-between text-muted-foreground">
+                      <span>
+                        {gstTotals.igstAmount > 0
+                          ? "IGST (interstate)"
+                          : "CGST + SGST (intrastate)"}
+                      </span>
+                      <span>{inr.format(gstTotals.totalTax)}</span>
+                    </div>
+                    {gstTotals.igstAmount === 0 ? (
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>
+                          CGST {inr.format(gstTotals.cgstAmount)} + SGST{" "}
+                          {inr.format(gstTotals.sgstAmount)}
+                        </span>
+                      </div>
+                    ) : null}
+                  </div>
+                )
+              ) : null}
+
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="po-discount">Discount</Label>
                   <Input
@@ -591,10 +674,7 @@ function PurchaseOrders() {
               </div>
 
               <DialogFooter>
-                <Button
-                  type="submit"
-                  disabled={savePo.isPending || !supplierId || !warehouseId}
-                >
+                <Button type="submit" disabled={savePo.isPending || !supplierId || !warehouseId}>
                   {savePo.isPending
                     ? "Saving…"
                     : editingId
@@ -640,7 +720,9 @@ function PurchaseOrders() {
                   <TableCell className="font-medium">{po.suppliers?.name}</TableCell>
                   <TableCell>{po.warehouses?.name}</TableCell>
                   <TableCell>{formatDate(po.order_date)}</TableCell>
-                  <TableCell className="text-right">{inr.format(Number(po.total_amount))}</TableCell>
+                  <TableCell className="text-right">
+                    {inr.format(Number(po.total_amount))}
+                  </TableCell>
                   <TableCell>
                     <Badge variant={STATUS_VARIANT[po.status]}>{po.status.replace("_", " ")}</Badge>
                   </TableCell>
@@ -666,7 +748,10 @@ function PurchaseOrders() {
                         <Button
                           size="sm"
                           onClick={() =>
-                            updateStatus.mutate({ id: po.id, status: primaryAction(po.status)!.next })
+                            updateStatus.mutate({
+                              id: po.id,
+                              status: primaryAction(po.status)!.next,
+                            })
                           }
                         >
                           {primaryAction(po.status)!.label}
@@ -707,7 +792,9 @@ function PurchaseOrders() {
                   <p className="font-medium">{selectedPo.warehouses?.name}</p>
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Order date</p>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Order date
+                  </p>
                   <p className="font-medium">{formatDate(selectedPo.order_date)}</p>
                 </div>
                 <div>
@@ -735,6 +822,7 @@ function PurchaseOrders() {
                     <TableHead className="text-right">Ordered</TableHead>
                     <TableHead className="text-right">Received</TableHead>
                     <TableHead className="text-right">Unit cost</TableHead>
+                    <TableHead className="text-right">GST</TableHead>
                     {["sent", "approved", "partially_received"].includes(selectedPo.status) ? (
                       <TableHead className="text-right">Receive</TableHead>
                     ) : null}
@@ -754,7 +842,12 @@ function PurchaseOrders() {
                         </TableCell>
                         <TableCell className="text-right">{item.quantity}</TableCell>
                         <TableCell className="text-right">{item.received_quantity}</TableCell>
-                        <TableCell className="text-right">{inr.format(Number(item.unit_cost))}</TableCell>
+                        <TableCell className="text-right">
+                          {inr.format(Number(item.unit_cost))}
+                        </TableCell>
+                        <TableCell className="text-right text-muted-foreground">
+                          {Number(item.tax_rate)}%
+                        </TableCell>
                         {canReceive ? (
                           <TableCell className="text-right">
                             {remaining <= 0 ? (
@@ -801,7 +894,28 @@ function PurchaseOrders() {
                   <span>Subtotal</span>
                   <span>{inr.format(Number(selectedPo.subtotal))}</span>
                 </div>
-                {Number(selectedPo.tax_amount) > 0 ? (
+                {Number(selectedPo.igst_amount) > 0 ? (
+                  <div className="flex items-center justify-between text-muted-foreground">
+                    <span>IGST</span>
+                    <span>{inr.format(Number(selectedPo.igst_amount))}</span>
+                  </div>
+                ) : null}
+                {Number(selectedPo.cgst_amount) > 0 ? (
+                  <div className="flex items-center justify-between text-muted-foreground">
+                    <span>CGST</span>
+                    <span>{inr.format(Number(selectedPo.cgst_amount))}</span>
+                  </div>
+                ) : null}
+                {Number(selectedPo.sgst_amount) > 0 ? (
+                  <div className="flex items-center justify-between text-muted-foreground">
+                    <span>SGST</span>
+                    <span>{inr.format(Number(selectedPo.sgst_amount))}</span>
+                  </div>
+                ) : null}
+                {Number(selectedPo.tax_amount) > 0 &&
+                Number(selectedPo.cgst_amount) === 0 &&
+                Number(selectedPo.sgst_amount) === 0 &&
+                Number(selectedPo.igst_amount) === 0 ? (
                   <div className="flex items-center justify-between text-muted-foreground">
                     <span>Tax</span>
                     <span>{inr.format(Number(selectedPo.tax_amount))}</span>

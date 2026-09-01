@@ -15,6 +15,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated/account'
 import { Route as AuthenticatedAlertsRouteImport } from './routes/_authenticated/alerts'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedGstFilingRouteImport } from './routes/_authenticated/gst-filing'
 import { Route as AuthenticatedInventoryRouteImport } from './routes/_authenticated/inventory'
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
 import { Route as AuthenticatedProductsRouteImport } from './routes/_authenticated/products'
@@ -49,6 +50,11 @@ const AuthenticatedAlertsRoute = AuthenticatedAlertsRouteImport.update({
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedGstFilingRoute = AuthenticatedGstFilingRouteImport.update({
+  id: '/gst-filing',
+  path: '/gst-filing',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedInventoryRoute = AuthenticatedInventoryRouteImport.update({
@@ -89,6 +95,7 @@ export interface FileRoutesByFullPath {
   '/account': typeof AuthenticatedAccountRoute
   '/alerts': typeof AuthenticatedAlertsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/gst-filing': typeof AuthenticatedGstFilingRoute
   '/inventory': typeof AuthenticatedInventoryRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/products': typeof AuthenticatedProductsRoute
@@ -102,6 +109,7 @@ export interface FileRoutesByTo {
   '/account': typeof AuthenticatedAccountRoute
   '/alerts': typeof AuthenticatedAlertsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/gst-filing': typeof AuthenticatedGstFilingRoute
   '/inventory': typeof AuthenticatedInventoryRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/products': typeof AuthenticatedProductsRoute
@@ -117,6 +125,7 @@ export interface FileRoutesById {
   '/_authenticated/account': typeof AuthenticatedAccountRoute
   '/_authenticated/alerts': typeof AuthenticatedAlertsRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/gst-filing': typeof AuthenticatedGstFilingRoute
   '/_authenticated/inventory': typeof AuthenticatedInventoryRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
   '/_authenticated/products': typeof AuthenticatedProductsRoute
@@ -132,6 +141,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/alerts'
     | '/dashboard'
+    | '/gst-filing'
     | '/inventory'
     | '/onboarding'
     | '/products'
@@ -145,6 +155,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/alerts'
     | '/dashboard'
+    | '/gst-filing'
     | '/inventory'
     | '/onboarding'
     | '/products'
@@ -159,6 +170,7 @@ export interface FileRouteTypes {
     | '/_authenticated/account'
     | '/_authenticated/alerts'
     | '/_authenticated/dashboard'
+    | '/_authenticated/gst-filing'
     | '/_authenticated/inventory'
     | '/_authenticated/onboarding'
     | '/_authenticated/products'
@@ -217,6 +229,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/gst-filing': {
+      id: '/_authenticated/gst-filing'
+      path: '/gst-filing'
+      fullPath: '/gst-filing'
+      preLoaderRoute: typeof AuthenticatedGstFilingRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/inventory': {
       id: '/_authenticated/inventory'
       path: '/inventory'
@@ -266,6 +285,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAccountRoute: typeof AuthenticatedAccountRoute
   AuthenticatedAlertsRoute: typeof AuthenticatedAlertsRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedGstFilingRoute: typeof AuthenticatedGstFilingRoute
   AuthenticatedInventoryRoute: typeof AuthenticatedInventoryRoute
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRoute
   AuthenticatedProductsRoute: typeof AuthenticatedProductsRoute
@@ -278,6 +298,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAccountRoute: AuthenticatedAccountRoute,
   AuthenticatedAlertsRoute: AuthenticatedAlertsRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedGstFilingRoute: AuthenticatedGstFilingRoute,
   AuthenticatedInventoryRoute: AuthenticatedInventoryRoute,
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRoute,
   AuthenticatedProductsRoute: AuthenticatedProductsRoute,
