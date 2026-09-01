@@ -904,6 +904,16 @@ export const Constants = {
         "damage",
       ],
       org_role: ["owner", "admin", "manager", "staff", "viewer"],
+      po_status: [
+        "draft",
+        "pending_approval",
+        "approved",
+        "sent",
+        "partially_received",
+        "received",
+        "closed",
+        "cancelled",
+      ],
     },
   },
 } as const
