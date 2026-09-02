@@ -12,4 +12,10 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  // Hard-pin the deploy target to Vercel now that this app is leaving Lovable
+  // hosting, rather than relying on Nitro's own NITRO_PRESET/platform
+  // auto-detection.
+  nitro: {
+    preset: "vercel",
+  },
 });

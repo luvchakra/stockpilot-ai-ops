@@ -13,7 +13,6 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as BlogRouteImport } from './routes/blog'
-import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
 import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated/account'
 import { Route as AuthenticatedAlertsRouteImport } from './routes/_authenticated/alerts'
 import { Route as AuthenticatedCustomersRouteImport } from './routes/_authenticated/customers'
@@ -26,6 +25,7 @@ import { Route as AuthenticatedPurchaseOrdersRouteImport } from './routes/_authe
 import { Route as AuthenticatedSalesOrdersRouteImport } from './routes/_authenticated/sales-orders'
 import { Route as AuthenticatedSuppliersRouteImport } from './routes/_authenticated/suppliers'
 import { Route as AuthenticatedWarehousesRouteImport } from './routes/_authenticated/warehouses'
+import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -44,11 +44,6 @@ const AuthRoute = AuthRouteImport.update({
 const BlogRoute = BlogRouteImport.update({
   id: '/blog',
   path: '/blog',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const BlogSlugRoute = BlogSlugRouteImport.update({
-  id: '/blog/$slug',
-  path: '/blog/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAccountRoute = AuthenticatedAccountRouteImport.update({
@@ -97,11 +92,12 @@ const AuthenticatedPurchaseOrdersRoute =
     path: '/purchase-orders',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const AuthenticatedSalesOrdersRoute = AuthenticatedSalesOrdersRouteImport.update({
-  id: '/sales-orders',
-  path: '/sales-orders',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
+const AuthenticatedSalesOrdersRoute =
+  AuthenticatedSalesOrdersRouteImport.update({
+    id: '/sales-orders',
+    path: '/sales-orders',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedSuppliersRoute = AuthenticatedSuppliersRouteImport.update({
   id: '/suppliers',
   path: '/suppliers',
@@ -112,12 +108,16 @@ const AuthenticatedWarehousesRoute = AuthenticatedWarehousesRouteImport.update({
   path: '/warehouses',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const BlogSlugRoute = BlogSlugRouteImport.update({
+  id: '/$slug',
+  path: '/$slug',
+  getParentRoute: () => BlogRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
-  '/blog': typeof BlogRoute
-  '/blog/$slug': typeof BlogSlugRoute
+  '/blog': typeof BlogRouteWithChildren
   '/account': typeof AuthenticatedAccountRoute
   '/alerts': typeof AuthenticatedAlertsRoute
   '/customers': typeof AuthenticatedCustomersRoute
@@ -130,12 +130,12 @@ export interface FileRoutesByFullPath {
   '/sales-orders': typeof AuthenticatedSalesOrdersRoute
   '/suppliers': typeof AuthenticatedSuppliersRoute
   '/warehouses': typeof AuthenticatedWarehousesRoute
+  '/blog/$slug': typeof BlogSlugRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
-  '/blog': typeof BlogRoute
-  '/blog/$slug': typeof BlogSlugRoute
+  '/blog': typeof BlogRouteWithChildren
   '/account': typeof AuthenticatedAccountRoute
   '/alerts': typeof AuthenticatedAlertsRoute
   '/customers': typeof AuthenticatedCustomersRoute
@@ -148,14 +148,14 @@ export interface FileRoutesByTo {
   '/sales-orders': typeof AuthenticatedSalesOrdersRoute
   '/suppliers': typeof AuthenticatedSuppliersRoute
   '/warehouses': typeof AuthenticatedWarehousesRoute
+  '/blog/$slug': typeof BlogSlugRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
-  '/blog': typeof BlogRoute
-  '/blog/$slug': typeof BlogSlugRoute
+  '/blog': typeof BlogRouteWithChildren
   '/_authenticated/account': typeof AuthenticatedAccountRoute
   '/_authenticated/alerts': typeof AuthenticatedAlertsRoute
   '/_authenticated/customers': typeof AuthenticatedCustomersRoute
@@ -168,6 +168,7 @@ export interface FileRoutesById {
   '/_authenticated/sales-orders': typeof AuthenticatedSalesOrdersRoute
   '/_authenticated/suppliers': typeof AuthenticatedSuppliersRoute
   '/_authenticated/warehouses': typeof AuthenticatedWarehousesRoute
+  '/blog/$slug': typeof BlogSlugRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -175,7 +176,6 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/blog'
-    | '/blog/$slug'
     | '/account'
     | '/alerts'
     | '/customers'
@@ -188,12 +188,12 @@ export interface FileRouteTypes {
     | '/sales-orders'
     | '/suppliers'
     | '/warehouses'
+    | '/blog/$slug'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/auth'
     | '/blog'
-    | '/blog/$slug'
     | '/account'
     | '/alerts'
     | '/customers'
@@ -206,13 +206,13 @@ export interface FileRouteTypes {
     | '/sales-orders'
     | '/suppliers'
     | '/warehouses'
+    | '/blog/$slug'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
     | '/auth'
     | '/blog'
-    | '/blog/$slug'
     | '/_authenticated/account'
     | '/_authenticated/alerts'
     | '/_authenticated/customers'
@@ -225,14 +225,14 @@ export interface FileRouteTypes {
     | '/_authenticated/sales-orders'
     | '/_authenticated/suppliers'
     | '/_authenticated/warehouses'
+    | '/blog/$slug'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
-  BlogRoute: typeof BlogRoute
-  BlogSlugRoute: typeof BlogSlugRoute
+  BlogRoute: typeof BlogRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -263,13 +263,6 @@ declare module '@tanstack/react-router' {
       path: '/blog'
       fullPath: '/blog'
       preLoaderRoute: typeof BlogRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/blog/$slug': {
-      id: '/blog/$slug'
-      path: '/blog/$slug'
-      fullPath: '/blog/$slug'
-      preLoaderRoute: typeof BlogSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/account': {
@@ -356,6 +349,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedWarehousesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/blog/$slug': {
+      id: '/blog/$slug'
+      path: '/$slug'
+      fullPath: '/blog/$slug'
+      preLoaderRoute: typeof BlogSlugRouteImport
+      parentRoute: typeof BlogRoute
+    }
   }
 }
 
@@ -392,12 +392,21 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
 const AuthenticatedRouteRouteWithChildren =
   AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
 
+interface BlogRouteChildren {
+  BlogSlugRoute: typeof BlogSlugRoute
+}
+
+const BlogRouteChildren: BlogRouteChildren = {
+  BlogSlugRoute: BlogSlugRoute,
+}
+
+const BlogRouteWithChildren = BlogRoute._addFileChildren(BlogRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
-  BlogRoute: BlogRoute,
-  BlogSlugRoute: BlogSlugRoute,
+  BlogRoute: BlogRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
