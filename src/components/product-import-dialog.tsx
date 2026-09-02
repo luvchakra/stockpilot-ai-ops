@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, Download, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -212,10 +213,11 @@ export function ProductImportDialog({
         suppliers.map((s) => [s.name.trim().toLowerCase(), s.id] as const),
       );
 
+      type ProductInsert = Database["public"]["Tables"]["products"]["Insert"];
       type Payload = {
         sourceRowNumber: number;
         sku: string;
-        payload: Record<string, unknown>;
+        payload: ProductInsert;
       };
       const payloads: Payload[] = [];
       for (const row of toImport) {
@@ -230,8 +232,8 @@ export function ProductImportDialog({
           sku: v.sku ?? "",
           payload: {
             org_id: orgId,
-            sku: v.sku,
-            name: v.name,
+            sku: v.sku ?? "",
+            name: v.name ?? "",
             brand: v.brand || null,
             barcode: v.barcode || null,
             description: v.description || null,
