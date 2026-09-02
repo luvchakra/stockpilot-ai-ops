@@ -513,8 +513,8 @@ function PurchaseOrders() {
                 </div>
                 <div className="space-y-2">
                   {lines.map((line, idx) => (
-                    <div key={idx} className="flex items-end gap-2">
-                      <div className="flex-1 space-y-1">
+                    <div key={idx} className="flex flex-wrap items-end gap-2">
+                      <div className="w-full space-y-1 sm:min-w-0 sm:flex-1">
                         <Label className="text-xs text-muted-foreground">Product</Label>
                         <Select
                           value={line.product_id}
@@ -546,7 +546,7 @@ function PurchaseOrders() {
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="w-24 space-y-1">
+                      <div className="w-[4.5rem] space-y-1 sm:w-24">
                         <Label className="text-xs text-muted-foreground">Qty</Label>
                         <Input
                           type="number"
@@ -562,7 +562,7 @@ function PurchaseOrders() {
                           }
                         />
                       </div>
-                      <div className="w-28 space-y-1">
+                      <div className="w-20 space-y-1 sm:w-28">
                         <Label className="text-xs text-muted-foreground">Unit cost</Label>
                         <Input
                           type="number"
@@ -578,7 +578,7 @@ function PurchaseOrders() {
                           }
                         />
                       </div>
-                      <div className="w-24 space-y-1">
+                      <div className="w-20 space-y-1 sm:w-24">
                         <Label className="text-xs text-muted-foreground">GST %</Label>
                         <Select
                           value={line.tax_rate}
@@ -700,70 +700,132 @@ function PurchaseOrders() {
           </p>
         </div>
       ) : (
-        <div className="panel overflow-x-auto rounded-2xl border border-border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>PO number</TableHead>
-                <TableHead>Supplier</TableHead>
-                <TableHead>Warehouse</TableHead>
-                <TableHead>Order date</TableHead>
-                <TableHead className="text-right">Total</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {purchaseOrders.data.map((po) => (
-                <TableRow key={po.id}>
-                  <TableCell className="font-mono text-xs">{po.po_number}</TableCell>
-                  <TableCell className="font-medium">{po.suppliers?.name}</TableCell>
-                  <TableCell>{po.warehouses?.name}</TableCell>
-                  <TableCell>{formatDate(po.order_date)}</TableCell>
-                  <TableCell className="text-right">
-                    {inr.format(Number(po.total_amount))}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={STATUS_VARIANT[po.status]}>{po.status.replace("_", " ")}</Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
-                      {po.status === "draft" ? (
-                        <Button variant="ghost" size="sm" onClick={() => startEdit(po)}>
-                          <Pencil className="size-4" />
-                          Edit
-                        </Button>
-                      ) : null}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setDetailId(po.id);
-                          setReceiveQty({});
-                        }}
-                      >
-                        View
-                      </Button>
-                      {primaryAction(po.status) ? (
-                        <Button
-                          size="sm"
-                          onClick={() =>
-                            updateStatus.mutate({
-                              id: po.id,
-                              status: primaryAction(po.status)!.next,
-                            })
-                          }
-                        >
-                          {primaryAction(po.status)!.label}
-                        </Button>
-                      ) : null}
-                    </div>
-                  </TableCell>
+        <>
+          <div className="hidden overflow-x-auto rounded-2xl border border-border panel sm:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>PO number</TableHead>
+                  <TableHead>Supplier</TableHead>
+                  <TableHead>Warehouse</TableHead>
+                  <TableHead>Order date</TableHead>
+                  <TableHead className="text-right">Total</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+              </TableHeader>
+              <TableBody>
+                {purchaseOrders.data.map((po) => (
+                  <TableRow key={po.id}>
+                    <TableCell className="font-mono text-xs">{po.po_number}</TableCell>
+                    <TableCell className="font-medium">{po.suppliers?.name}</TableCell>
+                    <TableCell>{po.warehouses?.name}</TableCell>
+                    <TableCell>{formatDate(po.order_date)}</TableCell>
+                    <TableCell className="text-right">
+                      {inr.format(Number(po.total_amount))}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={STATUS_VARIANT[po.status]}>
+                        {po.status.replace("_", " ")}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        {po.status === "draft" ? (
+                          <Button variant="ghost" size="sm" onClick={() => startEdit(po)}>
+                            <Pencil className="size-4" />
+                            Edit
+                          </Button>
+                        ) : null}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setDetailId(po.id);
+                            setReceiveQty({});
+                          }}
+                        >
+                          View
+                        </Button>
+                        {primaryAction(po.status) ? (
+                          <Button
+                            size="sm"
+                            onClick={() =>
+                              updateStatus.mutate({
+                                id: po.id,
+                                status: primaryAction(po.status)!.next,
+                              })
+                            }
+                          >
+                            {primaryAction(po.status)!.label}
+                          </Button>
+                        ) : null}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div className="space-y-3 sm:hidden">
+            {purchaseOrders.data.map((po) => (
+              <div key={po.id} className="panel space-y-3 rounded-2xl border border-border p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{po.suppliers?.name}</p>
+                    <p className="font-mono text-xs text-muted-foreground">{po.po_number}</p>
+                  </div>
+                  <Badge variant={STATUS_VARIANT[po.status]} className="shrink-0">
+                    {po.status.replace("_", " ")}
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Warehouse</p>
+                    <p className="truncate">{po.warehouses?.name}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Order date</p>
+                    <p>{formatDate(po.order_date)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Total</p>
+                    <p className="font-medium">{inr.format(Number(po.total_amount))}</p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-3">
+                  {po.status === "draft" ? (
+                    <Button variant="ghost" size="sm" onClick={() => startEdit(po)}>
+                      <Pencil className="size-4" />
+                      Edit
+                    </Button>
+                  ) : null}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setDetailId(po.id);
+                      setReceiveQty({});
+                    }}
+                  >
+                    View
+                  </Button>
+                  {primaryAction(po.status) ? (
+                    <Button
+                      size="sm"
+                      onClick={() =>
+                        updateStatus.mutate({ id: po.id, status: primaryAction(po.status)!.next })
+                      }
+                    >
+                      {primaryAction(po.status)!.label}
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       <Dialog open={!!detailId} onOpenChange={(v) => !v && setDetailId(null)}>
@@ -815,79 +877,151 @@ function PurchaseOrders() {
                 ) : null}
               </div>
 
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Product</TableHead>
-                    <TableHead className="text-right">Ordered</TableHead>
-                    <TableHead className="text-right">Received</TableHead>
-                    <TableHead className="text-right">Unit cost</TableHead>
-                    <TableHead className="text-right">GST</TableHead>
-                    {["sent", "approved", "partially_received"].includes(selectedPo.status) ? (
-                      <TableHead className="text-right">Receive</TableHead>
-                    ) : null}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(detail.data ?? []).map((item) => {
-                    const remaining = Number(item.quantity) - Number(item.received_quantity);
-                    const canReceive = ["sent", "approved", "partially_received"].includes(
-                      selectedPo.status,
-                    );
-                    return (
-                      <TableRow key={item.id}>
-                        <TableCell className="font-medium">
-                          {item.products?.name}{" "}
-                          <span className="text-muted-foreground">({item.products?.sku})</span>
-                        </TableCell>
-                        <TableCell className="text-right">{item.quantity}</TableCell>
-                        <TableCell className="text-right">{item.received_quantity}</TableCell>
-                        <TableCell className="text-right">
-                          {inr.format(Number(item.unit_cost))}
-                        </TableCell>
-                        <TableCell className="text-right text-muted-foreground">
-                          {Number(item.tax_rate)}%
-                        </TableCell>
-                        {canReceive ? (
-                          <TableCell className="text-right">
-                            {remaining <= 0 ? (
-                              <span className="text-xs text-muted-foreground">Complete</span>
-                            ) : (
-                              <div className="flex items-center justify-end gap-2">
-                                <Input
-                                  type="number"
-                                  min={0}
-                                  max={remaining}
-                                  step="0.01"
-                                  className="h-8 w-20"
-                                  placeholder={String(remaining)}
-                                  value={receiveQty[item.id] ?? ""}
-                                  onChange={(e) =>
-                                    setReceiveQty((q) => ({ ...q, [item.id]: e.target.value }))
-                                  }
-                                />
-                                <Button
-                                  size="sm"
-                                  disabled={receiveItem.isPending}
-                                  onClick={() => {
-                                    const qty = Number(receiveQty[item.id] || remaining);
-                                    if (qty > 0) {
-                                      receiveItem.mutate({ itemId: item.id, quantity: qty });
-                                      setReceiveQty((q) => ({ ...q, [item.id]: "" }));
-                                    }
-                                  }}
-                                >
-                                  Receive
-                                </Button>
-                              </div>
-                            )}
+              <div className="hidden sm:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Product</TableHead>
+                      <TableHead className="text-right">Ordered</TableHead>
+                      <TableHead className="text-right">Received</TableHead>
+                      <TableHead className="text-right">Unit cost</TableHead>
+                      <TableHead className="text-right">GST</TableHead>
+                      {["sent", "approved", "partially_received"].includes(selectedPo.status) ? (
+                        <TableHead className="text-right">Receive</TableHead>
+                      ) : null}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(detail.data ?? []).map((item) => {
+                      const remaining = Number(item.quantity) - Number(item.received_quantity);
+                      const canReceive = ["sent", "approved", "partially_received"].includes(
+                        selectedPo.status,
+                      );
+                      return (
+                        <TableRow key={item.id}>
+                          <TableCell className="font-medium">
+                            {item.products?.name}{" "}
+                            <span className="text-muted-foreground">({item.products?.sku})</span>
                           </TableCell>
-                        ) : null}
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+                          <TableCell className="text-right">{item.quantity}</TableCell>
+                          <TableCell className="text-right">{item.received_quantity}</TableCell>
+                          <TableCell className="text-right">
+                            {inr.format(Number(item.unit_cost))}
+                          </TableCell>
+                          <TableCell className="text-right text-muted-foreground">
+                            {Number(item.tax_rate)}%
+                          </TableCell>
+                          {canReceive ? (
+                            <TableCell className="text-right">
+                              {remaining <= 0 ? (
+                                <span className="text-xs text-muted-foreground">Complete</span>
+                              ) : (
+                                <div className="flex items-center justify-end gap-2">
+                                  <Input
+                                    type="number"
+                                    min={0}
+                                    max={remaining}
+                                    step="0.01"
+                                    className="h-8 w-20"
+                                    placeholder={String(remaining)}
+                                    value={receiveQty[item.id] ?? ""}
+                                    onChange={(e) =>
+                                      setReceiveQty((q) => ({ ...q, [item.id]: e.target.value }))
+                                    }
+                                  />
+                                  <Button
+                                    size="sm"
+                                    disabled={receiveItem.isPending}
+                                    onClick={() => {
+                                      const qty = Number(receiveQty[item.id] || remaining);
+                                      if (qty > 0) {
+                                        receiveItem.mutate({ itemId: item.id, quantity: qty });
+                                        setReceiveQty((q) => ({ ...q, [item.id]: "" }));
+                                      }
+                                    }}
+                                  >
+                                    Receive
+                                  </Button>
+                                </div>
+                              )}
+                            </TableCell>
+                          ) : null}
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+
+              <div className="space-y-3 sm:hidden">
+                {(detail.data ?? []).map((item) => {
+                  const remaining = Number(item.quantity) - Number(item.received_quantity);
+                  const canReceive = ["sent", "approved", "partially_received"].includes(
+                    selectedPo.status,
+                  );
+                  return (
+                    <div key={item.id} className="rounded-lg border border-border p-3">
+                      <p className="font-medium">
+                        {item.products?.name}{" "}
+                        <span className="text-muted-foreground">({item.products?.sku})</span>
+                      </p>
+                      <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Ordered</p>
+                          <p>{item.quantity}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Received</p>
+                          <p>{item.received_quantity}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Unit cost</p>
+                          <p>{inr.format(Number(item.unit_cost))}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">GST</p>
+                          <p>{Number(item.tax_rate)}%</p>
+                        </div>
+                      </div>
+                      {canReceive ? (
+                        <div className="mt-3 border-t border-border pt-3">
+                          {remaining <= 0 ? (
+                            <span className="text-xs text-muted-foreground">Complete</span>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <Input
+                                type="number"
+                                min={0}
+                                max={remaining}
+                                step="0.01"
+                                className="h-9 flex-1"
+                                placeholder={String(remaining)}
+                                value={receiveQty[item.id] ?? ""}
+                                onChange={(e) =>
+                                  setReceiveQty((q) => ({ ...q, [item.id]: e.target.value }))
+                                }
+                              />
+                              <Button
+                                size="sm"
+                                disabled={receiveItem.isPending}
+                                onClick={() => {
+                                  const qty = Number(receiveQty[item.id] || remaining);
+                                  if (qty > 0) {
+                                    receiveItem.mutate({ itemId: item.id, quantity: qty });
+                                    setReceiveQty((q) => ({ ...q, [item.id]: "" }));
+                                  }
+                                }}
+                              >
+                                Receive
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
 
               <div className="space-y-1 rounded-lg bg-muted/50 px-4 py-3 text-sm">
                 <div className="flex items-center justify-between text-muted-foreground">

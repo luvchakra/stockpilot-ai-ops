@@ -19,7 +19,14 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 export const Route = createFileRoute("/_authenticated/warehouses")({
   head: () => ({
@@ -93,8 +100,7 @@ function Warehouses() {
       setEditingId(null);
       queryClient.invalidateQueries({ queryKey: ["warehouses", orgId] });
     },
-    onError: (err) =>
-      toast.error(err instanceof Error ? err.message : "Could not save warehouse"),
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Could not save warehouse"),
   });
 
   const startEdit = (wh: NonNullable<typeof warehouses.data>[number]) => {
@@ -119,7 +125,8 @@ function Warehouses() {
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["warehouses", orgId] }),
-    onError: (err) => toast.error(err instanceof Error ? err.message : "Could not update warehouse"),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : "Could not update warehouse"),
   });
 
   return (
@@ -246,50 +253,95 @@ function Warehouses() {
           <p className="text-sm text-muted-foreground">No warehouses yet. Create your first one.</p>
         </div>
       ) : (
-        <div className="panel overflow-x-auto rounded-2xl border border-border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Code</TableHead>
-                <TableHead>City</TableHead>
-                <TableHead>State</TableHead>
-                <TableHead>Contact</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {warehouses.data.map((wh) => (
-                <TableRow key={wh.id}>
-                  <TableCell className="font-medium">{wh.name}</TableCell>
-                  <TableCell>{wh.code}</TableCell>
-                  <TableCell>{wh.city ?? "—"}</TableCell>
-                  <TableCell>{wh.state ?? "—"}</TableCell>
-                  <TableCell>{wh.contact_name ?? wh.contact_phone ?? "—"}</TableCell>
-                  <TableCell>
-                    <Badge variant={wh.is_active ? "default" : "secondary"}>
-                      {wh.is_active ? "Active" : "Inactive"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="sm" onClick={() => startEdit(wh)}>
-                      <Pencil className="size-4" />
-                      Edit
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => toggleActive.mutate({ id: wh.id, is_active: !wh.is_active })}
-                    >
-                      {wh.is_active ? "Deactivate" : "Activate"}
-                    </Button>
-                  </TableCell>
+        <>
+          <div className="hidden overflow-x-auto rounded-2xl border border-border panel sm:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Code</TableHead>
+                  <TableHead>City</TableHead>
+                  <TableHead>State</TableHead>
+                  <TableHead>Contact</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+              </TableHeader>
+              <TableBody>
+                {warehouses.data.map((wh) => (
+                  <TableRow key={wh.id}>
+                    <TableCell className="font-medium">{wh.name}</TableCell>
+                    <TableCell>{wh.code}</TableCell>
+                    <TableCell>{wh.city ?? "—"}</TableCell>
+                    <TableCell>{wh.state ?? "—"}</TableCell>
+                    <TableCell>{wh.contact_name ?? wh.contact_phone ?? "—"}</TableCell>
+                    <TableCell>
+                      <Badge variant={wh.is_active ? "default" : "secondary"}>
+                        {wh.is_active ? "Active" : "Inactive"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="sm" onClick={() => startEdit(wh)}>
+                        <Pencil className="size-4" />
+                        Edit
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => toggleActive.mutate({ id: wh.id, is_active: !wh.is_active })}
+                      >
+                        {wh.is_active ? "Deactivate" : "Activate"}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div className="space-y-3 sm:hidden">
+            {warehouses.data.map((wh) => (
+              <div key={wh.id} className="panel space-y-3 rounded-2xl border border-border p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{wh.name}</p>
+                    <p className="text-xs text-muted-foreground">{wh.code}</p>
+                  </div>
+                  <Badge variant={wh.is_active ? "default" : "secondary"} className="shrink-0">
+                    {wh.is_active ? "Active" : "Inactive"}
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+                  <div>
+                    <p className="text-xs text-muted-foreground">City</p>
+                    <p className="truncate">{wh.city ?? "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">State</p>
+                    <p className="truncate">{wh.state ?? "—"}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-xs text-muted-foreground">Contact</p>
+                    <p className="truncate">{wh.contact_name ?? wh.contact_phone ?? "—"}</p>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 border-t border-border pt-3">
+                  <Button variant="ghost" size="sm" onClick={() => startEdit(wh)}>
+                    <Pencil className="size-4" />
+                    Edit
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => toggleActive.mutate({ id: wh.id, is_active: !wh.is_active })}
+                  >
+                    {wh.is_active ? "Deactivate" : "Activate"}
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
     </AppShell>
   );
