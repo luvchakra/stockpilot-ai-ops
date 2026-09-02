@@ -479,7 +479,10 @@ export type Database = {
       }
       stock_levels: {
         Row: {
+          damaged: number
+          expired: number
           id: string
+          in_transit: number
           incoming: number
           org_id: string
           product_id: string
@@ -489,7 +492,10 @@ export type Database = {
           warehouse_id: string
         }
         Insert: {
+          damaged?: number
+          expired?: number
           id?: string
+          in_transit?: number
           incoming?: number
           org_id: string
           product_id: string
@@ -499,7 +505,10 @@ export type Database = {
           warehouse_id: string
         }
         Update: {
+          damaged?: number
+          expired?: number
           id?: string
+          in_transit?: number
           incoming?: number
           org_id?: string
           product_id?: string
@@ -755,6 +764,9 @@ export type Database = {
         | "transfer_out"
         | "return"
         | "damage"
+        | "reserve"
+        | "unreserve"
+        | "expired"
       org_role: "owner" | "admin" | "manager" | "staff" | "viewer"
       po_status:
         | "draft"
@@ -902,6 +914,9 @@ export const Constants = {
         "transfer_out",
         "return",
         "damage",
+        "reserve",
+        "unreserve",
+        "expired",
       ],
       org_role: ["owner", "admin", "manager", "staff", "viewer"],
       po_status: [

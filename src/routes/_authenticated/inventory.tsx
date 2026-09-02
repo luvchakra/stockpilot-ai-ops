@@ -52,11 +52,23 @@ const MOVEMENT_TYPES: { value: MovementType; label: string }[] = [
   { value: "inbound", label: "Inbound (receive stock)" },
   { value: "outbound", label: "Outbound (sale/dispatch)" },
   { value: "adjustment", label: "Adjustment (correction)" },
-  { value: "damage", label: "Damage" },
+  { value: "reserve", label: "Reserve (hold for an order)" },
+  { value: "unreserve", label: "Unreserve (release hold)" },
+  { value: "damage", label: "Damage (flag as damaged)" },
+  { value: "expired", label: "Expired" },
   { value: "return", label: "Return" },
   { value: "transfer_in", label: "Transfer in" },
   { value: "transfer_out", label: "Transfer out" },
 ];
+
+// A PO's ordered-but-not-yet-received quantity counts as "incoming" once
+// it's a confirmed order the supplier is acting on, not while it's still a
+// draft or awaiting approval.
+const INCOMING_PO_STATUSES = new Set(["approved", "sent", "partially_received"]);
+
+function incomingKey(productId: string, warehouseId: string) {
+  return `${productId}:${warehouseId}`;
+}
 
 const emptyForm = {
   product_id: "",
@@ -118,6 +130,31 @@ function Inventory() {
         .order("name");
       if (error) throw error;
       return data;
+    },
+  });
+
+  // "Incoming" isn't part of the movement ledger — nothing has physically
+  // moved yet — so it's derived from open purchase orders' outstanding
+  // (ordered - received) quantity per product/warehouse, not stored.
+  const incomingByKey = useQuery({
+    queryKey: ["incoming-stock", orgId],
+    enabled: !!orgId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("purchase_order_items")
+        .select("product_id, quantity, received_quantity, purchase_orders(status, warehouse_id)")
+        .eq("org_id", orgId!);
+      if (error) throw error;
+      const map = new Map<string, number>();
+      for (const item of data ?? []) {
+        const po = item.purchase_orders;
+        if (!po || !INCOMING_PO_STATUSES.has(po.status)) continue;
+        const outstanding = Number(item.quantity) - Number(item.received_quantity);
+        if (outstanding <= 0) continue;
+        const key = incomingKey(item.product_id, po.warehouse_id);
+        map.set(key, (map.get(key) ?? 0) + outstanding);
+      }
+      return map;
     },
   });
 
@@ -320,15 +357,24 @@ function Inventory() {
                   <TableHead>Product</TableHead>
                   <TableHead>Warehouse</TableHead>
                   <TableHead className="text-right">On hand</TableHead>
-                  <TableHead className="text-right">Reserved</TableHead>
                   <TableHead className="text-right">Available</TableHead>
+                  <TableHead className="text-right">Reserved</TableHead>
+                  <TableHead className="text-right">Damaged</TableHead>
+                  <TableHead className="text-right">Expired</TableHead>
                   <TableHead className="text-right">Incoming</TableHead>
+                  <TableHead className="text-right">In transit</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {stockLevels.data.map((row) => {
-                  const available = Number(row.quantity) - Number(row.reserved);
+                  const available =
+                    Number(row.quantity) -
+                    Number(row.reserved) -
+                    Number(row.damaged) -
+                    Number(row.expired);
+                  const incoming =
+                    incomingByKey.data?.get(incomingKey(row.product_id, row.warehouse_id)) ?? 0;
                   const low =
                     row.products?.reorder_point != null &&
                     Number(row.quantity) <= Number(row.products.reorder_point);
@@ -344,12 +390,21 @@ function Inventory() {
                       >
                         {num.format(Number(row.quantity))}
                       </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {num.format(available)}
+                      </TableCell>
                       <TableCell className="text-right">
                         {num.format(Number(row.reserved))}
                       </TableCell>
-                      <TableCell className="text-right">{num.format(available)}</TableCell>
                       <TableCell className="text-right">
-                        {num.format(Number(row.incoming))}
+                        {num.format(Number(row.damaged))}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {num.format(Number(row.expired))}
+                      </TableCell>
+                      <TableCell className="text-right">{num.format(incoming)}</TableCell>
+                      <TableCell className="text-right">
+                        {num.format(Number(row.in_transit))}
                       </TableCell>
                       <TableCell className="text-right">
                         <Button variant="ghost" size="sm" onClick={() => startEdit(row)}>
@@ -366,7 +421,13 @@ function Inventory() {
 
           <div className="space-y-3 sm:hidden">
             {stockLevels.data.map((row) => {
-              const available = Number(row.quantity) - Number(row.reserved);
+              const available =
+                Number(row.quantity) -
+                Number(row.reserved) -
+                Number(row.damaged) -
+                Number(row.expired);
+              const incoming =
+                incomingByKey.data?.get(incomingKey(row.product_id, row.warehouse_id)) ?? 0;
               const low =
                 row.products?.reorder_point != null &&
                 Number(row.quantity) <= Number(row.products.reorder_point);
@@ -397,16 +458,28 @@ function Inventory() {
                       </p>
                     </div>
                     <div>
+                      <p className="text-xs text-muted-foreground">Available</p>
+                      <p className="font-medium">{num.format(available)}</p>
+                    </div>
+                    <div>
                       <p className="text-xs text-muted-foreground">Reserved</p>
                       <p>{num.format(Number(row.reserved))}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-muted-foreground">Available</p>
-                      <p>{num.format(available)}</p>
+                      <p className="text-xs text-muted-foreground">Damaged</p>
+                      <p>{num.format(Number(row.damaged))}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Expired</p>
+                      <p>{num.format(Number(row.expired))}</p>
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground">Incoming</p>
-                      <p>{num.format(Number(row.incoming))}</p>
+                      <p>{num.format(incoming)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">In transit</p>
+                      <p>{num.format(Number(row.in_transit))}</p>
                     </div>
                   </div>
                 </div>
