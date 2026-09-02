@@ -24,7 +24,7 @@ export function useMemberships() {
   });
 }
 
-// Writes the active workspace id to both localStorage (so it survives a
+// Writes the active business id to both localStorage (so it survives a
 // reload) and the shared query cache (so every useCurrentOrg() call site —
 // the header switcher, every page, onboarding — sees the change
 // immediately, instead of each holding its own independent copy).
@@ -39,7 +39,8 @@ export function useCurrentOrg() {
 
   const selectedOrgId = useQuery({
     queryKey: SELECTED_ORG_QUERY_KEY,
-    queryFn: () => (typeof window !== "undefined" ? window.localStorage.getItem(STORAGE_KEY) : null),
+    queryFn: () =>
+      typeof window !== "undefined" ? window.localStorage.getItem(STORAGE_KEY) : null,
     staleTime: Infinity,
   });
 

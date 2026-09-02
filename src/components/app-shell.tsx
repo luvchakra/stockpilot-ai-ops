@@ -218,7 +218,7 @@ export function AppShell({
             <Select
               value={org?.id ?? ""}
               onValueChange={(value) => {
-                if (value === "__new_workspace__") {
+                if (value === "__new_business__") {
                   navigate({ to: "/onboarding" });
                   return;
                 }
@@ -226,7 +226,7 @@ export function AppShell({
               }}
             >
               <SelectTrigger className="w-40 shrink-0 sm:w-48">
-                <SelectValue placeholder="Workspace" />
+                <SelectValue placeholder="Business" />
               </SelectTrigger>
               <SelectContent>
                 {memberships.map((m) => (
@@ -235,10 +235,10 @@ export function AppShell({
                   </SelectItem>
                 ))}
                 <SelectSeparator />
-                <SelectItem value="__new_workspace__">
+                <SelectItem value="__new_business__">
                   <span className="flex items-center gap-2">
                     <Plus className="size-4" />
-                    Create new workspace
+                    Create new business
                   </span>
                 </SelectItem>
               </SelectContent>

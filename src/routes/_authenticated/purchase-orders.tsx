@@ -618,7 +618,7 @@ function PurchaseOrders() {
                 gstTotals.incomplete ? (
                   <p className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn">
                     Can't compute GST for this order yet — set a state on this supplier and on your
-                    workspace's GST profile (Account settings) so CGST/SGST vs. IGST can be
+                    business's GST profile (Account settings) so CGST/SGST vs. IGST can be
                     determined.
                   </p>
                 ) : (
