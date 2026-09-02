@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // Integration test suite for the multi-tenant RLS hardening
 // (supabase/migrations/20260830130000_harden_tenant_rls.sql) plus RLS
-// coverage for features added since: workspace editing and the
-// purchase-order create/edit/receive workflow.
+// coverage for features added since: workspace editing, the
+// purchase-order create/edit/receive workflow, and the reserved/damaged/
+// expired inventory state model.
 //
 // Exercises the live Supabase project over its REST/Auth API — no
 // @supabase/supabase-js needed, just Node's built-in fetch, so it runs
@@ -113,7 +114,7 @@ async function rpc(fn, { token, body } = {}) {
 async function rest(method, table, { token, body, query = "", extraHeaders = {} } = {}) {
   const headers = {
     "Content-Type": "application/json",
-    apikey: token ? ANON_KEY : SERVICE_KEY ?? ANON_KEY,
+    apikey: token ? ANON_KEY : (SERVICE_KEY ?? ANON_KEY),
     ...extraHeaders,
   };
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -164,7 +165,9 @@ async function makeUser(tag) {
     const userId = await createConfirmedUserViaAdmin(email, PASSWORD);
     const signin = await signIn(email, PASSWORD);
     if (!signin.ok || !signin.data.access_token) {
-      throw new Error(`sign-in failed for admin-created user ${email}: ${JSON.stringify(signin.data)}`);
+      throw new Error(
+        `sign-in failed for admin-created user ${email}: ${JSON.stringify(signin.data)}`,
+      );
     }
     createdUserIds.push({ email, id: userId });
     return { email, id: userId, token: signin.data.access_token };
@@ -419,7 +422,9 @@ async function main() {
     });
     check(
       "admin CAN rename the workspace and set its industry",
-      asAdmin.ok && asAdmin.data?.[0]?.name === "Renamed By Admin" && asAdmin.data?.[0]?.industry === "Wholesale",
+      asAdmin.ok &&
+        asAdmin.data?.[0]?.name === "Renamed By Admin" &&
+        asAdmin.data?.[0]?.industry === "Wholesale",
       `status ${asAdmin.status}, body ${JSON.stringify(asAdmin.data)}`,
     );
   }
@@ -468,12 +473,22 @@ async function main() {
         total_amount: 500,
       },
     });
-    check("admin/staff can create a purchase order", po.ok, `status ${po.status}, body ${JSON.stringify(po.data)}`);
+    check(
+      "admin/staff can create a purchase order",
+      po.ok,
+      `status ${po.status}, body ${JSON.stringify(po.data)}`,
+    );
     const poId = po.data?.[0]?.id;
 
     const item = await rest("POST", "purchase_order_items", {
       token: admin.token,
-      body: { org_id: orgId, purchase_order_id: poId, product_id: productId, quantity: 10, unit_cost: 50 },
+      body: {
+        org_id: orgId,
+        purchase_order_id: poId,
+        product_id: productId,
+        quantity: 10,
+        unit_cost: 50,
+      },
     });
     check("admin can add a line item to the draft PO", item.ok, `status ${item.status}`);
     const itemId = item.data?.[0]?.id;
@@ -493,8 +508,13 @@ async function main() {
       query: `?id=eq.${poId}`,
       body: { notes: "hijacked" },
     });
-    const outsiderEdited = outsiderEdit.ok && Array.isArray(outsiderEdit.data) && outsiderEdit.data.length > 0;
-    check("a non-member cannot edit another org's purchase order", !outsiderEdited, `status ${outsiderEdit.status}`);
+    const outsiderEdited =
+      outsiderEdit.ok && Array.isArray(outsiderEdit.data) && outsiderEdit.data.length > 0;
+    check(
+      "a non-member cannot edit another org's purchase order",
+      !outsiderEdited,
+      `status ${outsiderEdit.status}`,
+    );
 
     const edit = await rest("PATCH", "purchase_orders", {
       token: admin.token,
@@ -557,6 +577,148 @@ async function main() {
       "receiving posted a stock movement that updated stock_levels",
       Number(stockAfter.data?.[0]?.quantity) === 10,
       `body ${JSON.stringify(stockAfter.data)}`,
+    );
+  }
+
+  // --- H. Inventory state model: reserved/damaged/expired (SP-3) --------
+  console.log("\nH. Inventory state model: reserved, damaged, expired stock");
+  {
+    const product = await rest("POST", "products", {
+      token: admin.token,
+      body: { org_id: orgId, sku: `INV-SKU-${RUN_ID}`, name: "Inventory state test product" },
+    });
+    const warehouse = await rest("POST", "warehouses", {
+      token: admin.token,
+      body: { org_id: orgId, name: "Inventory Test WH", code: `INV-WH-${RUN_ID}` },
+    });
+    const productId = product.data?.[0]?.id;
+    const warehouseId = warehouse.data?.[0]?.id;
+
+    const outsiderMovement = await rest("POST", "stock_movements", {
+      token: outsider.token,
+      body: {
+        org_id: orgId,
+        product_id: productId,
+        warehouse_id: warehouseId,
+        type: "reserve",
+        quantity: 5,
+      },
+    });
+    check(
+      "a non-member cannot post a reserve movement against another org's stock",
+      !outsiderMovement.ok,
+      `expected failure, got status ${outsiderMovement.status}`,
+    );
+
+    await rest("POST", "stock_movements", {
+      token: admin.token,
+      body: {
+        org_id: orgId,
+        product_id: productId,
+        warehouse_id: warehouseId,
+        type: "inbound",
+        quantity: 100,
+      },
+    });
+    await rest("POST", "stock_movements", {
+      token: admin.token,
+      body: {
+        org_id: orgId,
+        product_id: productId,
+        warehouse_id: warehouseId,
+        type: "reserve",
+        quantity: 20,
+      },
+    });
+    await rest("POST", "stock_movements", {
+      token: admin.token,
+      body: {
+        org_id: orgId,
+        product_id: productId,
+        warehouse_id: warehouseId,
+        type: "unreserve",
+        quantity: 5,
+      },
+    });
+    await rest("POST", "stock_movements", {
+      token: admin.token,
+      body: {
+        org_id: orgId,
+        product_id: productId,
+        warehouse_id: warehouseId,
+        type: "damage",
+        quantity: 7,
+      },
+    });
+    const expiredMovement = await rest("POST", "stock_movements", {
+      token: admin.token,
+      body: {
+        org_id: orgId,
+        product_id: productId,
+        warehouse_id: warehouseId,
+        type: "expired",
+        quantity: 3,
+      },
+    });
+    check(
+      "admin can post reserve/unreserve/damage/expired movements",
+      expiredMovement.ok,
+      `status ${expiredMovement.status}`,
+    );
+
+    const level = await rest("GET", "stock_levels", {
+      token: admin.token,
+      query: `?product_id=eq.${productId}&warehouse_id=eq.${warehouseId}&select=quantity,reserved,damaged,expired`,
+    });
+    const row = level.data?.[0];
+    check(
+      "on hand is unaffected by reserve/damage/expired (stays at the inbound total)",
+      Number(row?.quantity) === 100,
+      `body ${JSON.stringify(row)}`,
+    );
+    check(
+      "reserved nets to 15 after reserve 20 / unreserve 5",
+      Number(row?.reserved) === 15,
+      `body ${JSON.stringify(row)}`,
+    );
+    check("damaged is 7", Number(row?.damaged) === 7, `body ${JSON.stringify(row)}`);
+    check("expired is 3", Number(row?.expired) === 3, `body ${JSON.stringify(row)}`);
+    const available =
+      Number(row?.quantity) - Number(row?.reserved) - Number(row?.damaged) - Number(row?.expired);
+    check(
+      "available = on_hand - reserved - damaged - expired = 75",
+      available === 75,
+      `computed ${available}`,
+    );
+
+    const movementId = expiredMovement.data?.[0]?.id;
+    const patch = await rest("PATCH", "stock_movements", {
+      token: admin.token,
+      query: `?id=eq.${movementId}`,
+      body: { quantity: 999 },
+    });
+    const patched = patch.ok && Array.isArray(patch.data) && patch.data.length > 0;
+    check(
+      "an 'expired' movement is append-only too — even the owner/admin cannot update it",
+      !patched,
+      `status ${patch.status}`,
+    );
+
+    const del = await rest("DELETE", "stock_movements", {
+      token: admin.token,
+      query: `?id=eq.${movementId}`,
+    });
+    const deleted = del.ok && Array.isArray(del.data) && del.data.length > 0;
+    check("an 'expired' movement cannot be deleted either", !deleted, `status ${del.status}`);
+
+    const outsiderRead = await rest("GET", "stock_levels", {
+      token: outsider.token,
+      query: `?product_id=eq.${productId}&warehouse_id=eq.${warehouseId}`,
+    });
+    check(
+      "a non-member cannot read another org's stock_levels (reserved/damaged/expired included)",
+      outsiderRead.ok && Array.isArray(outsiderRead.data) && outsiderRead.data.length === 0,
+      `body ${JSON.stringify(outsiderRead.data)}`,
     );
   }
 

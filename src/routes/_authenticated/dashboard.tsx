@@ -59,6 +59,11 @@ const OPEN_PO_STATUSES = new Set([
   "partially_received",
 ]);
 
+// A PO's outstanding (ordered - received) quantity counts as "incoming"
+// once it's a confirmed order the supplier is acting on, not while it's
+// still a draft or awaiting approval.
+const INCOMING_PO_STATUSES = new Set(["approved", "sent", "partially_received"]);
+
 // Mirrors the sign convention the apply_stock_movement DB trigger uses to
 // keep stock_levels in sync, so "increase" here means the same thing it
 // means to the ledger.
@@ -95,7 +100,7 @@ function Dashboard() {
       windowStart.setDate(windowStart.getDate() - (MOVEMENT_DAYS - 1));
       windowStart.setHours(0, 0, 0, 0);
 
-      const [products, levels, alerts, movements14d, purchaseOrders, gstPurchases] =
+      const [products, levels, alerts, movements14d, purchaseOrders, gstPurchases, openPoItems] =
         await Promise.all([
           supabase
             .from("products")
@@ -103,7 +108,7 @@ function Dashboard() {
             .eq("org_id", orgId!),
           supabase
             .from("stock_levels")
-            .select("product_id, quantity, reserved, incoming")
+            .select("product_id, quantity, reserved, damaged, expired")
             .eq("org_id", orgId!),
           supabase
             .from("alerts")
@@ -126,19 +131,42 @@ function Dashboard() {
             .select("id, cgst_amount, sgst_amount, igst_amount, suppliers(gst_number)")
             .eq("org_id", orgId!)
             .gte("order_date", monthStart),
+          supabase
+            .from("purchase_order_items")
+            .select("quantity, received_quantity, purchase_orders(status)")
+            .eq("org_id", orgId!),
         ]);
 
       const productList = products.data ?? [];
       const levelList = levels.data ?? [];
       const qtyByProduct = new Map<string, number>();
       let reservedTotal = 0;
-      let incomingTotal = 0;
+      let damagedTotal = 0;
+      let expiredTotal = 0;
       for (const l of levelList) {
         qtyByProduct.set(l.product_id, (qtyByProduct.get(l.product_id) ?? 0) + Number(l.quantity));
         reservedTotal += Number(l.reserved);
-        incomingTotal += Number(l.incoming);
+        damagedTotal += Number(l.damaged);
+        expiredTotal += Number(l.expired);
       }
       const unitsOnHand = [...qtyByProduct.values()].reduce((a, b) => a + b, 0);
+
+      const incomingTotal = (openPoItems.data ?? []).reduce(
+        (
+          sum: number,
+          item: {
+            quantity: number;
+            received_quantity: number;
+            purchase_orders: { status: string } | null;
+          },
+        ) => {
+          const status = item.purchase_orders?.status;
+          if (!status || !INCOMING_PO_STATUSES.has(status)) return sum;
+          const outstanding = Number(item.quantity) - Number(item.received_quantity);
+          return outstanding > 0 ? sum + outstanding : sum;
+        },
+        0,
+      );
 
       const stockValue = productList.reduce(
         (sum, p) => sum + Number(p.cost_price) * (qtyByProduct.get(p.id) ?? 0),
@@ -195,7 +223,7 @@ function Dashboard() {
         units: unitsOnHand,
         reserved: reservedTotal,
         incoming: incomingTotal,
-        available: unitsOnHand - reservedTotal,
+        available: unitsOnHand - reservedTotal - damagedTotal - expiredTotal,
         healthy,
         low,
         stockout,
