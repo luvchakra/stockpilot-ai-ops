@@ -64,9 +64,13 @@ const STATUS_VARIANT: Record<SoStatus, "default" | "secondary" | "destructive" |
 
 type LineItem = { product_id: string; quantity: string; unit_price: string; tax_rate: string };
 
+// customer_id/warehouse_id are NOT NULL FKs, so supabase-js infers these
+// embeds as always-present (not nullable) — matched here so this type
+// lines up with what `.select("*, customers(name), warehouses(name)")`
+// actually produces.
 type SalesOrderRow = Database["public"]["Tables"]["sales_orders"]["Row"] & {
-  customers: { name: string } | null;
-  warehouses: { name: string } | null;
+  customers: { name: string };
+  warehouses: { name: string };
 };
 type CustomerOption = { id: string; name: string; state: string | null; gstin: string | null };
 type WarehouseOption = { id: string; name: string };
@@ -78,7 +82,7 @@ type ProductOption = {
   tax_rate: number;
 };
 type SalesOrderItemRow = Database["public"]["Tables"]["sales_order_items"]["Row"] & {
-  products: { name: string; sku: string } | null;
+  products: { name: string; sku: string };
 };
 type SalesOrderItemFormRow = {
   product_id: string;
