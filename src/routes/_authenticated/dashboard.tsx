@@ -1,11 +1,13 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle,
   Clock,
+  FileWarning,
   IndianRupee,
   Package,
   PackageCheck,
+  Receipt,
   ShoppingCart,
   TrendingDown,
   Truck,
@@ -17,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate, inr, num } from "@/lib/format";
+import { isValidGstin } from "@/lib/gst";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
@@ -39,7 +42,13 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
   component: Dashboard,
 });
 
-const OPEN_PO_STATUSES = new Set(["draft", "pending_approval", "approved", "sent", "partially_received"]);
+const OPEN_PO_STATUSES = new Set([
+  "draft",
+  "pending_approval",
+  "approved",
+  "sent",
+  "partially_received",
+]);
 
 function Dashboard() {
   const { org } = useCurrentOrg();
@@ -49,33 +58,43 @@ function Dashboard() {
     queryKey: ["dashboard", orgId],
     enabled: !!orgId,
     queryFn: async () => {
-      const [products, levels, alerts, movements, purchaseOrders] = await Promise.all([
-        supabase
-          .from("products")
-          .select("id, name, sku, cost_price, reorder_point")
-          .eq("org_id", orgId!),
-        supabase
-          .from("stock_levels")
-          .select("product_id, quantity, reserved, incoming")
-          .eq("org_id", orgId!),
-        supabase
-          .from("alerts")
-          .select("id, title, severity, created_at")
-          .eq("org_id", orgId!)
-          .eq("status", "open")
-          .order("created_at", { ascending: false })
-          .limit(5),
-        supabase
-          .from("stock_movements")
-          .select("id, type, quantity, created_at, products(name, sku)")
-          .eq("org_id", orgId!)
-          .order("created_at", { ascending: false })
-          .limit(8),
-        supabase
-          .from("purchase_orders")
-          .select("id, po_number, status, expected_delivery_date, suppliers(name)")
-          .eq("org_id", orgId!),
-      ]);
+      const now = new Date();
+      const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+
+      const [products, levels, alerts, movements, purchaseOrders, gstPurchases] = await Promise.all(
+        [
+          supabase
+            .from("products")
+            .select("id, name, sku, cost_price, reorder_point")
+            .eq("org_id", orgId!),
+          supabase
+            .from("stock_levels")
+            .select("product_id, quantity, reserved, incoming")
+            .eq("org_id", orgId!),
+          supabase
+            .from("alerts")
+            .select("id, title, severity, created_at")
+            .eq("org_id", orgId!)
+            .eq("status", "open")
+            .order("created_at", { ascending: false })
+            .limit(5),
+          supabase
+            .from("stock_movements")
+            .select("id, type, quantity, created_at, products(name, sku)")
+            .eq("org_id", orgId!)
+            .order("created_at", { ascending: false })
+            .limit(8),
+          supabase
+            .from("purchase_orders")
+            .select("id, po_number, status, expected_delivery_date, suppliers(name)")
+            .eq("org_id", orgId!),
+          supabase
+            .from("purchase_orders")
+            .select("id, cgst_amount, sgst_amount, igst_amount, suppliers(gst_number)")
+            .eq("org_id", orgId!)
+            .gte("order_date", monthStart),
+        ],
+      );
 
       const productList = products.data ?? [];
       const levelList = levels.data ?? [];
@@ -117,6 +136,13 @@ function Dashboard() {
         (po) => po.expected_delivery_date && po.expected_delivery_date < today,
       );
 
+      const gstRows = gstPurchases.data ?? [];
+      const gstRiskCount = gstRows.filter((po) => !isValidGstin(po.suppliers?.gst_number)).length;
+      const gstPayableThisMonth = gstRows.reduce(
+        (sum, po) => sum + Number(po.cgst_amount) + Number(po.sgst_amount) + Number(po.igst_amount),
+        0,
+      );
+
       return {
         productCount: productList.length,
         stockValue,
@@ -132,6 +158,8 @@ function Dashboard() {
         overduePOs,
         alerts: alerts.data ?? [],
         movements: movements.data ?? [],
+        gstRiskCount,
+        gstPayableThisMonth,
       };
     },
   });
@@ -194,7 +222,8 @@ function Dashboard() {
                   <span className="size-2 rounded-full bg-warn" /> {data.low} low stock
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="size-2 rounded-full bg-destructive" /> {data.stockout} out of stock
+                  <span className="size-2 rounded-full bg-destructive" /> {data.stockout} out of
+                  stock
                 </span>
               </div>
             </>
@@ -237,10 +266,44 @@ function Dashboard() {
           <CardContent className="space-y-3">
             {!data ? (
               <Skeleton className="h-24 w-full" />
-            ) : data.overduePOs.length === 0 && data.alerts.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nothing needs your attention right now.</p>
+            ) : data.overduePOs.length === 0 &&
+              data.alerts.length === 0 &&
+              data.gstRiskCount === 0 &&
+              org?.gstin ? (
+              <p className="text-sm text-muted-foreground">
+                Nothing needs your attention right now.
+              </p>
             ) : (
               <>
+                {!org?.gstin ? (
+                  <Link
+                    to="/account"
+                    className="flex items-center justify-between gap-3 text-sm hover:underline"
+                  >
+                    <p className="min-w-0 truncate font-medium">
+                      Set up your workspace's GST profile
+                    </p>
+                    <Badge variant="outline" className="shrink-0 border-warn/40 text-warn">
+                      <Receipt className="size-3" />
+                      Setup
+                    </Badge>
+                  </Link>
+                ) : null}
+                {data.gstRiskCount > 0 ? (
+                  <Link
+                    to="/gst-filing"
+                    className="flex items-center justify-between gap-3 text-sm hover:underline"
+                  >
+                    <p className="min-w-0 truncate font-medium">
+                      {data.gstRiskCount} purchase{data.gstRiskCount === 1 ? "" : "s"} this month{" "}
+                      {data.gstRiskCount === 1 ? "has" : "have"} a missing/invalid supplier GSTIN
+                    </p>
+                    <Badge variant="destructive" className="shrink-0">
+                      <FileWarning className="size-3" />
+                      ITC risk
+                    </Badge>
+                  </Link>
+                ) : null}
                 {data.overduePOs.slice(0, 3).map((po) => (
                   <div key={po.id} className="flex items-center justify-between gap-3 text-sm">
                     <div className="min-w-0">
@@ -311,6 +374,7 @@ function buildBrief(
     pendingPurchases: number;
     overduePOs: unknown[];
     alerts: unknown[];
+    gstPayableThisMonth: number;
   },
 ) {
   const parts: string[] = [
@@ -326,12 +390,19 @@ function buildBrief(
   if (data.pendingPurchases > 0) {
     parts.push(
       `${num.format(data.pendingPurchases)} purchase order${data.pendingPurchases === 1 ? " is" : "s are"} awaiting delivery${
-        data.overduePOs.length > 0 ? `, including ${num.format(data.overduePOs.length)} overdue` : ""
+        data.overduePOs.length > 0
+          ? `, including ${num.format(data.overduePOs.length)} overdue`
+          : ""
       }.`,
     );
   }
   if (data.alerts.length > 0) {
-    parts.push(`${num.format(data.alerts.length)} open alert${data.alerts.length === 1 ? "" : "s"} need attention.`);
+    parts.push(
+      `${num.format(data.alerts.length)} open alert${data.alerts.length === 1 ? "" : "s"} need attention.`,
+    );
+  }
+  if (data.gstPayableThisMonth > 0) {
+    parts.push(`GST paid on purchases this month so far: ${inr.format(data.gstPayableThisMonth)}.`);
   }
   return parts.join(" ");
 }
