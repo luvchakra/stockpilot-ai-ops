@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/table";
 import { inr } from "@/lib/format";
 import { GST_RATE_SLABS } from "@/lib/gst";
+import { ProductImportDialog } from "@/components/product-import-dialog";
 
 export const Route = createFileRoute("/_authenticated/products")({
   head: () => ({
@@ -195,192 +196,200 @@ function Products() {
       title="Products"
       description="Your product catalogue and SKUs."
       actions={
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button
-              size="sm"
-              onClick={() => {
-                setForm(emptyForm);
-                setEditingId(null);
-              }}
-            >
-              <Plus className="size-4" />
-              New product
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-h-[85vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>{editingId ? "Edit product" : "New product"}</DialogTitle>
-            </DialogHeader>
-            <form
-              className="space-y-4"
-              onSubmit={(e) => {
-                e.preventDefault();
-                saveProduct.mutate();
-              }}
-            >
-              <div className="grid gap-4 sm:grid-cols-2">
+        <div className="flex flex-wrap gap-2">
+          <ProductImportDialog
+            orgId={orgId ?? ""}
+            existingSkus={(products.data ?? []).map((p: { sku: string }) => p.sku)}
+            suppliers={suppliers.data ?? []}
+            onImported={() => queryClient.invalidateQueries({ queryKey: ["products", orgId] })}
+          />
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button
+                size="sm"
+                onClick={() => {
+                  setForm(emptyForm);
+                  setEditingId(null);
+                }}
+              >
+                <Plus className="size-4" />
+                New product
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-h-[85vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>{editingId ? "Edit product" : "New product"}</DialogTitle>
+              </DialogHeader>
+              <form
+                className="space-y-4"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  saveProduct.mutate();
+                }}
+              >
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="p-sku">SKU</Label>
+                    <Input
+                      id="p-sku"
+                      required
+                      value={form.sku}
+                      onChange={(e) => setForm((f) => ({ ...f, sku: e.target.value }))}
+                      placeholder="SKU-1001"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="p-name">Name</Label>
+                    <Input
+                      id="p-name"
+                      required
+                      value={form.name}
+                      onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="p-brand">Brand</Label>
+                    <Input
+                      id="p-brand"
+                      value={form.brand}
+                      onChange={(e) => setForm((f) => ({ ...f, brand: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="p-barcode">Barcode</Label>
+                    <Input
+                      id="p-barcode"
+                      value={form.barcode}
+                      onChange={(e) => setForm((f) => ({ ...f, barcode: e.target.value }))}
+                      placeholder="EAN / UPC / Code128"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="p-category">Category</Label>
+                    <Input
+                      id="p-category"
+                      value={form.category}
+                      onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
+                      placeholder="Beauty"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="p-supplier">Preferred supplier</Label>
+                    <Select
+                      value={form.supplier_id}
+                      onValueChange={(v) => setForm((f) => ({ ...f, supplier_id: v }))}
+                    >
+                      <SelectTrigger id="p-supplier">
+                        <SelectValue placeholder="None" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(suppliers.data ?? []).map((s) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="p-unit">Unit</Label>
+                    <Input
+                      id="p-unit"
+                      value={form.unit}
+                      onChange={(e) => setForm((f) => ({ ...f, unit: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="p-hsn">HSN code</Label>
+                    <Input
+                      id="p-hsn"
+                      value={form.hsn_code}
+                      onChange={(e) => setForm((f) => ({ ...f, hsn_code: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="p-tax">GST rate</Label>
+                    <Select
+                      value={form.tax_rate}
+                      onValueChange={(v) => setForm((f) => ({ ...f, tax_rate: v }))}
+                    >
+                      <SelectTrigger id="p-tax">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {GST_RATE_SLABS.map((rate) => (
+                          <SelectItem key={rate} value={String(rate)}>
+                            {rate}%
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="p-cost">Cost price</Label>
+                    <Input
+                      id="p-cost"
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={form.cost_price}
+                      onChange={(e) => setForm((f) => ({ ...f, cost_price: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="p-price">Selling price</Label>
+                    <Input
+                      id="p-price"
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={form.selling_price}
+                      onChange={(e) => setForm((f) => ({ ...f, selling_price: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="p-reorder-point">Reorder point</Label>
+                    <Input
+                      id="p-reorder-point"
+                      type="number"
+                      min={0}
+                      value={form.reorder_point}
+                      onChange={(e) => setForm((f) => ({ ...f, reorder_point: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="p-reorder-qty">Reorder quantity</Label>
+                    <Input
+                      id="p-reorder-qty"
+                      type="number"
+                      min={0}
+                      value={form.reorder_quantity}
+                      onChange={(e) => setForm((f) => ({ ...f, reorder_quantity: e.target.value }))}
+                    />
+                  </div>
+                </div>
                 <div className="space-y-2">
-                  <Label htmlFor="p-sku">SKU</Label>
-                  <Input
-                    id="p-sku"
-                    required
-                    value={form.sku}
-                    onChange={(e) => setForm((f) => ({ ...f, sku: e.target.value }))}
-                    placeholder="SKU-1001"
+                  <Label htmlFor="p-description">Description</Label>
+                  <Textarea
+                    id="p-description"
+                    rows={3}
+                    value={form.description}
+                    onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="p-name">Name</Label>
-                  <Input
-                    id="p-name"
-                    required
-                    value={form.name}
-                    onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="p-brand">Brand</Label>
-                  <Input
-                    id="p-brand"
-                    value={form.brand}
-                    onChange={(e) => setForm((f) => ({ ...f, brand: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="p-barcode">Barcode</Label>
-                  <Input
-                    id="p-barcode"
-                    value={form.barcode}
-                    onChange={(e) => setForm((f) => ({ ...f, barcode: e.target.value }))}
-                    placeholder="EAN / UPC / Code128"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="p-category">Category</Label>
-                  <Input
-                    id="p-category"
-                    value={form.category}
-                    onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
-                    placeholder="Beauty"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="p-supplier">Preferred supplier</Label>
-                  <Select
-                    value={form.supplier_id}
-                    onValueChange={(v) => setForm((f) => ({ ...f, supplier_id: v }))}
-                  >
-                    <SelectTrigger id="p-supplier">
-                      <SelectValue placeholder="None" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(suppliers.data ?? []).map((s) => (
-                        <SelectItem key={s.id} value={s.id}>
-                          {s.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="p-unit">Unit</Label>
-                  <Input
-                    id="p-unit"
-                    value={form.unit}
-                    onChange={(e) => setForm((f) => ({ ...f, unit: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="p-hsn">HSN code</Label>
-                  <Input
-                    id="p-hsn"
-                    value={form.hsn_code}
-                    onChange={(e) => setForm((f) => ({ ...f, hsn_code: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="p-tax">GST rate</Label>
-                  <Select
-                    value={form.tax_rate}
-                    onValueChange={(v) => setForm((f) => ({ ...f, tax_rate: v }))}
-                  >
-                    <SelectTrigger id="p-tax">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {GST_RATE_SLABS.map((rate) => (
-                        <SelectItem key={rate} value={String(rate)}>
-                          {rate}%
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="p-cost">Cost price</Label>
-                  <Input
-                    id="p-cost"
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={form.cost_price}
-                    onChange={(e) => setForm((f) => ({ ...f, cost_price: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="p-price">Selling price</Label>
-                  <Input
-                    id="p-price"
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={form.selling_price}
-                    onChange={(e) => setForm((f) => ({ ...f, selling_price: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="p-reorder-point">Reorder point</Label>
-                  <Input
-                    id="p-reorder-point"
-                    type="number"
-                    min={0}
-                    value={form.reorder_point}
-                    onChange={(e) => setForm((f) => ({ ...f, reorder_point: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="p-reorder-qty">Reorder quantity</Label>
-                  <Input
-                    id="p-reorder-qty"
-                    type="number"
-                    min={0}
-                    value={form.reorder_quantity}
-                    onChange={(e) => setForm((f) => ({ ...f, reorder_quantity: e.target.value }))}
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="p-description">Description</Label>
-                <Textarea
-                  id="p-description"
-                  rows={3}
-                  value={form.description}
-                  onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                />
-              </div>
-              <DialogFooter>
-                <Button type="submit" disabled={saveProduct.isPending}>
-                  {saveProduct.isPending
-                    ? "Saving…"
-                    : editingId
-                      ? "Save changes"
-                      : "Create product"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+                <DialogFooter>
+                  <Button type="submit" disabled={saveProduct.isPending}>
+                    {saveProduct.isPending
+                      ? "Saving…"
+                      : editingId
+                        ? "Save changes"
+                        : "Create product"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
       }
     >
       {products.isLoading ? (
