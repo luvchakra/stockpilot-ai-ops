@@ -18,9 +18,11 @@ import {
   Plus,
   Receipt,
   Search,
+  ShoppingCart,
   Sun,
   Truck,
   ArrowLeftRight,
+  Users,
   Warehouse,
   User as UserIcon,
   ChevronDown,
@@ -63,9 +65,11 @@ const NAV_PRIMARY = [
   { to: "/inventory", label: "Inventory", icon: ArrowLeftRight },
   { to: "/warehouses", label: "Warehouses", icon: Warehouse },
   { to: "/suppliers", label: "Suppliers", icon: Truck },
+  { to: "/customers", label: "Customers", icon: Users },
 ] as const;
 
 const NAV_SECONDARY = [
+  { to: "/sales-orders", label: "Sales Orders", icon: ShoppingCart },
   { to: "/purchase-orders", label: "Purchase Orders", icon: ClipboardList },
   { to: "/alerts", label: "Alerts", icon: AlertTriangle },
   { to: "/gst-filing", label: "GST Filing", icon: Receipt },

@@ -12,6 +12,7 @@ import {
   Receipt,
   ShoppingCart,
   TrendingDown,
+  TrendingUp,
   Truck,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -96,46 +97,60 @@ function Dashboard() {
     queryFn: async () => {
       const now = new Date();
       const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+      const today = now.toISOString().slice(0, 10);
       const windowStart = new Date();
       windowStart.setDate(windowStart.getDate() - (MOVEMENT_DAYS - 1));
       windowStart.setHours(0, 0, 0, 0);
 
-      const [products, levels, alerts, movements14d, purchaseOrders, gstPurchases, openPoItems] =
-        await Promise.all([
-          supabase
-            .from("products")
-            .select("id, name, sku, cost_price, reorder_point")
-            .eq("org_id", orgId!),
-          supabase
-            .from("stock_levels")
-            .select("product_id, quantity, reserved, damaged, expired")
-            .eq("org_id", orgId!),
-          supabase
-            .from("alerts")
-            .select("id, title, severity, created_at")
-            .eq("org_id", orgId!)
-            .eq("status", "open")
-            .order("created_at", { ascending: false })
-            .limit(5),
-          supabase
-            .from("stock_movements")
-            .select("type, quantity, created_at")
-            .eq("org_id", orgId!)
-            .gte("created_at", windowStart.toISOString()),
-          supabase
-            .from("purchase_orders")
-            .select("id, po_number, status, expected_delivery_date, suppliers(name)")
-            .eq("org_id", orgId!),
-          supabase
-            .from("purchase_orders")
-            .select("id, cgst_amount, sgst_amount, igst_amount, suppliers(gst_number)")
-            .eq("org_id", orgId!)
-            .gte("order_date", monthStart),
-          supabase
-            .from("purchase_order_items")
-            .select("quantity, received_quantity, purchase_orders(status)")
-            .eq("org_id", orgId!),
-        ]);
+      const [
+        products,
+        levels,
+        alerts,
+        movements14d,
+        purchaseOrders,
+        gstPurchases,
+        openPoItems,
+        salesToday,
+      ] = await Promise.all([
+        supabase
+          .from("products")
+          .select("id, name, sku, cost_price, reorder_point")
+          .eq("org_id", orgId!),
+        supabase
+          .from("stock_levels")
+          .select("product_id, quantity, reserved, damaged, expired")
+          .eq("org_id", orgId!),
+        supabase
+          .from("alerts")
+          .select("id, title, severity, created_at")
+          .eq("org_id", orgId!)
+          .eq("status", "open")
+          .order("created_at", { ascending: false })
+          .limit(5),
+        supabase
+          .from("stock_movements")
+          .select("type, quantity, created_at")
+          .eq("org_id", orgId!)
+          .gte("created_at", windowStart.toISOString()),
+        supabase
+          .from("purchase_orders")
+          .select("id, po_number, status, expected_delivery_date, suppliers(name)")
+          .eq("org_id", orgId!),
+        supabase
+          .from("purchase_orders")
+          .select("id, cgst_amount, sgst_amount, igst_amount, suppliers(gst_number)")
+          .eq("org_id", orgId!)
+          .gte("order_date", monthStart),
+        supabase
+          .from("purchase_order_items")
+          .select("quantity, received_quantity, purchase_orders(status)")
+          .eq("org_id", orgId!),
+        supabase
+          .from("sales_orders")
+          .select("total_amount, status")
+          .eq("org_id", orgId!)
+          .eq("order_date", today),
+      ]);
 
       const productList = products.data ?? [];
       const levelList = levels.data ?? [];
@@ -190,11 +205,14 @@ function Dashboard() {
         }
       }
 
-      const today = new Date().toISOString().slice(0, 10);
       const openPOs = (purchaseOrders.data ?? []).filter((po) => OPEN_PO_STATUSES.has(po.status));
       const overduePOs = openPOs.filter(
         (po) => po.expected_delivery_date && po.expected_delivery_date < today,
       );
+
+      const salesTodayTotal = (salesToday.data ?? [])
+        .filter((so: { status: string }) => so.status !== "draft" && so.status !== "cancelled")
+        .reduce((sum: number, so: { total_amount: number }) => sum + Number(so.total_amount), 0);
 
       const gstRows = gstPurchases.data ?? [];
       const gstRiskCount = gstRows.filter((po) => !isValidGstin(po.suppliers?.gst_number)).length;
@@ -237,6 +255,7 @@ function Dashboard() {
         sgstThisMonth,
         igstThisMonth,
         gstPayableThisMonth,
+        salesTodayTotal,
       };
     },
   });
@@ -278,6 +297,11 @@ function Dashboard() {
           label="Pending purchases"
           value={data ? num.format(data.pendingPurchases) : undefined}
           icon={<ShoppingCart className="size-4 text-warn" />}
+        />
+        <Kpi
+          label="Sales today"
+          value={data ? inr.format(data.salesTodayTotal) : undefined}
+          icon={<TrendingUp className="size-4 text-signal" />}
         />
       </div>
 

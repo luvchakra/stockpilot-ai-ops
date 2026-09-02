@@ -722,6 +722,282 @@ async function main() {
     );
   }
 
+  // --- I. Customers + Sales Orders: reservation lifecycle (SP-4) ---------
+  console.log("\nI. Customers + Sales Orders: reservation lifecycle, isolation");
+  {
+    const customer = await rest("POST", "customers", {
+      token: admin.token,
+      body: { org_id: orgId, name: `Customer ${RUN_ID}`, state: "Maharashtra" },
+    });
+    check("admin can create a customer", customer.ok, `status ${customer.status}`);
+    const customerId = customer.data?.[0]?.id;
+
+    const viewerCustomerWrite = await rest("POST", "customers", {
+      token: viewer.token,
+      body: { org_id: orgId, name: "Viewer-created customer" },
+    });
+    check(
+      "viewer cannot create a customer",
+      !viewerCustomerWrite.ok,
+      `status ${viewerCustomerWrite.status}`,
+    );
+
+    const outsiderCustomerRead = await rest("GET", "customers", {
+      token: outsider.token,
+      query: `?id=eq.${customerId}`,
+    });
+    check(
+      "a non-member cannot read another org's customer",
+      outsiderCustomerRead.ok &&
+        Array.isArray(outsiderCustomerRead.data) &&
+        outsiderCustomerRead.data.length === 0,
+      `body ${JSON.stringify(outsiderCustomerRead.data)}`,
+    );
+
+    const product = await rest("POST", "products", {
+      token: admin.token,
+      body: {
+        org_id: orgId,
+        sku: `SO-SKU-${RUN_ID}`,
+        name: "SO test product",
+        selling_price: 100,
+        tax_rate: 18,
+      },
+    });
+    const warehouse = await rest("POST", "warehouses", {
+      token: admin.token,
+      body: { org_id: orgId, name: "SO Test WH", code: `SO-WH-${RUN_ID}` },
+    });
+    const productId = product.data?.[0]?.id;
+    const warehouseId = warehouse.data?.[0]?.id;
+
+    await rest("POST", "stock_movements", {
+      token: admin.token,
+      body: {
+        org_id: orgId,
+        product_id: productId,
+        warehouse_id: warehouseId,
+        type: "inbound",
+        quantity: 10,
+      },
+    });
+
+    const numberResult = await rpc("next_sales_order_number", {
+      token: admin.token,
+      body: { _org_id: orgId },
+    });
+    check(
+      "next_sales_order_number mints a per-financial-year number",
+      numberResult.ok &&
+        typeof numberResult.data === "string" &&
+        numberResult.data.startsWith("SO/"),
+      `status ${numberResult.status}, body ${JSON.stringify(numberResult.data)}`,
+    );
+
+    const viewerSoAttempt = await rest("POST", "sales_orders", {
+      token: viewer.token,
+      body: {
+        org_id: orgId,
+        customer_id: customerId,
+        warehouse_id: warehouseId,
+        so_number: `SO-VIEWER-${RUN_ID}`,
+      },
+    });
+    check(
+      "viewer cannot create a sales order",
+      !viewerSoAttempt.ok,
+      `status ${viewerSoAttempt.status}`,
+    );
+
+    const so = await rest("POST", "sales_orders", {
+      token: admin.token,
+      body: {
+        org_id: orgId,
+        customer_id: customerId,
+        warehouse_id: warehouseId,
+        so_number: numberResult.data,
+        subtotal: 1500,
+        total_amount: 1770,
+      },
+    });
+    check(
+      "admin can create a draft sales order",
+      so.ok,
+      `status ${so.status}, body ${JSON.stringify(so.data)}`,
+    );
+    const soId = so.data?.[0]?.id;
+
+    const item = await rest("POST", "sales_order_items", {
+      token: admin.token,
+      body: {
+        org_id: orgId,
+        sales_order_id: soId,
+        product_id: productId,
+        quantity: 15,
+        unit_price: 100,
+        tax_rate: 18,
+      },
+    });
+    check("admin can add a line item to the draft SO", item.ok, `status ${item.status}`);
+    const itemId = item.data?.[0]?.id;
+
+    const outsiderSoRead = await rest("GET", "sales_orders", {
+      token: outsider.token,
+      query: `?id=eq.${soId}`,
+    });
+    check(
+      "a non-member cannot read another org's sales order",
+      outsiderSoRead.ok && Array.isArray(outsiderSoRead.data) && outsiderSoRead.data.length === 0,
+      `body ${JSON.stringify(outsiderSoRead.data)}`,
+    );
+
+    const viewerConfirm = await rpc("confirm_sales_order", {
+      token: viewer.token,
+      body: { _so_id: soId },
+    });
+    check(
+      "viewer cannot confirm a sales order",
+      !viewerConfirm.ok,
+      `status ${viewerConfirm.status}`,
+    );
+
+    // The line asks for 15 but only 10 are on hand — confirmation must be
+    // blocked, and blocked entirely (no partial reservation).
+    const shortConfirm = await rpc("confirm_sales_order", {
+      token: admin.token,
+      body: { _so_id: soId },
+    });
+    check(
+      "confirming is blocked when a line exceeds available stock",
+      !shortConfirm.ok,
+      `expected failure, got status ${shortConfirm.status}, body ${JSON.stringify(shortConfirm.data)}`,
+    );
+    check(
+      "the blocked-confirm error names the short product and quantities",
+      typeof shortConfirm.data?.message === "string" &&
+        shortConfirm.data.message.includes("SO-SKU") &&
+        shortConfirm.data.message.includes("15") &&
+        shortConfirm.data.message.includes("10"),
+      `body ${JSON.stringify(shortConfirm.data)}`,
+    );
+
+    const levelAfterBlock = await rest("GET", "stock_levels", {
+      token: admin.token,
+      query: `?product_id=eq.${productId}&warehouse_id=eq.${warehouseId}&select=quantity,reserved`,
+    });
+    check(
+      "a blocked confirmation reserves nothing at all",
+      Number(levelAfterBlock.data?.[0]?.reserved) === 0 &&
+        Number(levelAfterBlock.data?.[0]?.quantity) === 10,
+      `body ${JSON.stringify(levelAfterBlock.data)}`,
+    );
+
+    // Bring the line down to something the warehouse can actually cover.
+    await rest("PATCH", "sales_order_items", {
+      token: admin.token,
+      query: `?id=eq.${itemId}`,
+      body: { quantity: 5 },
+    });
+
+    const confirm = await rpc("confirm_sales_order", {
+      token: admin.token,
+      body: { _so_id: soId },
+    });
+    check(
+      "admin can confirm once the line fits available stock",
+      confirm.ok,
+      `status ${confirm.status}, body ${JSON.stringify(confirm.data)}`,
+    );
+
+    const levelAfterConfirm = await rest("GET", "stock_levels", {
+      token: admin.token,
+      query: `?product_id=eq.${productId}&warehouse_id=eq.${warehouseId}&select=quantity,reserved`,
+    });
+    check(
+      "confirming reserves the line quantity without touching on_hand",
+      Number(levelAfterConfirm.data?.[0]?.reserved) === 5 &&
+        Number(levelAfterConfirm.data?.[0]?.quantity) === 10,
+      `body ${JSON.stringify(levelAfterConfirm.data)}`,
+    );
+
+    const ship = await rpc("ship_sales_order", { token: admin.token, body: { _so_id: soId } });
+    check(
+      "admin can ship a confirmed order",
+      ship.ok,
+      `status ${ship.status}, body ${JSON.stringify(ship.data)}`,
+    );
+
+    const levelAfterShip = await rest("GET", "stock_levels", {
+      token: admin.token,
+      query: `?product_id=eq.${productId}&warehouse_id=eq.${warehouseId}&select=quantity,reserved`,
+    });
+    check(
+      "shipping decrements on_hand and clears the reservation",
+      Number(levelAfterShip.data?.[0]?.reserved) === 0 &&
+        Number(levelAfterShip.data?.[0]?.quantity) === 5,
+      `body ${JSON.stringify(levelAfterShip.data)}`,
+    );
+
+    const soAfterShip = await rest("GET", "sales_orders", {
+      token: admin.token,
+      query: `?id=eq.${soId}&select=status`,
+    });
+    check(
+      "order status is shipped",
+      soAfterShip.data?.[0]?.status === "shipped",
+      `body ${JSON.stringify(soAfterShip.data)}`,
+    );
+
+    // A second, smaller order to prove cancellation releases a reservation
+    // with no stock-out.
+    const number2 = await rpc("next_sales_order_number", {
+      token: admin.token,
+      body: { _org_id: orgId },
+    });
+    const so2 = await rest("POST", "sales_orders", {
+      token: admin.token,
+      body: {
+        org_id: orgId,
+        customer_id: customerId,
+        warehouse_id: warehouseId,
+        so_number: number2.data,
+        subtotal: 300,
+        total_amount: 354,
+      },
+    });
+    const so2Id = so2.data?.[0]?.id;
+    await rest("POST", "sales_order_items", {
+      token: admin.token,
+      body: {
+        org_id: orgId,
+        sales_order_id: so2Id,
+        product_id: productId,
+        quantity: 3,
+        unit_price: 100,
+        tax_rate: 18,
+      },
+    });
+    await rpc("confirm_sales_order", { token: admin.token, body: { _so_id: so2Id } });
+
+    const cancel = await rpc("cancel_sales_order", { token: admin.token, body: { _so_id: so2Id } });
+    check(
+      "admin can cancel a confirmed order",
+      cancel.ok,
+      `status ${cancel.status}, body ${JSON.stringify(cancel.data)}`,
+    );
+
+    const levelAfterCancel = await rest("GET", "stock_levels", {
+      token: admin.token,
+      query: `?product_id=eq.${productId}&warehouse_id=eq.${warehouseId}&select=quantity,reserved`,
+    });
+    check(
+      "cancelling releases the reservation without a stock-out",
+      Number(levelAfterCancel.data?.[0]?.reserved) === 0 &&
+        Number(levelAfterCancel.data?.[0]?.quantity) === 5,
+      `body ${JSON.stringify(levelAfterCancel.data)}`,
+    );
+  }
+
   console.log(`\n${passed} passed, ${failed} failed`);
   return failed;
 }

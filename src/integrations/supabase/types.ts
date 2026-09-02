@@ -118,6 +118,59 @@ export type Database = {
           },
         ]
       }
+      customers: {
+        Row: {
+          billing_address: string | null
+          created_at: string
+          email: string | null
+          gstin: string | null
+          id: string
+          is_active: boolean
+          name: string
+          org_id: string
+          phone: string | null
+          shipping_address: string | null
+          state: string | null
+          updated_at: string
+        }
+        Insert: {
+          billing_address?: string | null
+          created_at?: string
+          email?: string | null
+          gstin?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          org_id: string
+          phone?: string | null
+          shipping_address?: string | null
+          state?: string | null
+          updated_at?: string
+        }
+        Update: {
+          billing_address?: string | null
+          created_at?: string
+          email?: string | null
+          gstin?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          org_id?: string
+          phone?: string | null
+          shipping_address?: string | null
+          state?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customers_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organization_members: {
         Row: {
           created_at: string
@@ -477,6 +530,184 @@ export type Database = {
           },
         ]
       }
+      sales_order_counters: {
+        Row: {
+          financial_year: string
+          next_number: number
+          org_id: string
+        }
+        Insert: {
+          financial_year: string
+          next_number?: number
+          org_id: string
+        }
+        Update: {
+          financial_year?: string
+          next_number?: number
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_order_counters_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sales_order_items: {
+        Row: {
+          cgst_amount: number
+          created_at: string
+          id: string
+          igst_amount: number
+          org_id: string
+          product_id: string
+          quantity: number
+          sales_order_id: string
+          sgst_amount: number
+          tax_rate: number
+          unit_price: number
+        }
+        Insert: {
+          cgst_amount?: number
+          created_at?: string
+          id?: string
+          igst_amount?: number
+          org_id: string
+          product_id: string
+          quantity: number
+          sales_order_id: string
+          sgst_amount?: number
+          tax_rate?: number
+          unit_price?: number
+        }
+        Update: {
+          cgst_amount?: number
+          created_at?: string
+          id?: string
+          igst_amount?: number
+          org_id?: string
+          product_id?: string
+          quantity?: number
+          sales_order_id?: string
+          sgst_amount?: number
+          tax_rate?: number
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_order_items_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_order_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_order_items_sales_order_id_fkey"
+            columns: ["sales_order_id"]
+            isOneToOne: false
+            referencedRelation: "sales_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sales_orders: {
+        Row: {
+          cgst_amount: number
+          created_at: string
+          created_by: string
+          customer_id: string
+          discount_amount: number
+          expected_fulfillment_date: string | null
+          id: string
+          igst_amount: number
+          notes: string | null
+          order_date: string
+          org_id: string
+          sgst_amount: number
+          shipping_amount: number
+          so_number: string
+          status: Database["public"]["Enums"]["so_status"]
+          subtotal: number
+          total_amount: number
+          updated_at: string
+          warehouse_id: string
+        }
+        Insert: {
+          cgst_amount?: number
+          created_at?: string
+          created_by?: string
+          customer_id: string
+          discount_amount?: number
+          expected_fulfillment_date?: string | null
+          id?: string
+          igst_amount?: number
+          notes?: string | null
+          order_date?: string
+          org_id: string
+          sgst_amount?: number
+          shipping_amount?: number
+          so_number: string
+          status?: Database["public"]["Enums"]["so_status"]
+          subtotal?: number
+          total_amount?: number
+          updated_at?: string
+          warehouse_id: string
+        }
+        Update: {
+          cgst_amount?: number
+          created_at?: string
+          created_by?: string
+          customer_id?: string
+          discount_amount?: number
+          expected_fulfillment_date?: string | null
+          id?: string
+          igst_amount?: number
+          notes?: string | null
+          order_date?: string
+          org_id?: string
+          sgst_amount?: number
+          shipping_amount?: number
+          so_number?: string
+          status?: Database["public"]["Enums"]["so_status"]
+          subtotal?: number
+          total_amount?: number
+          updated_at?: string
+          warehouse_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_orders_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_orders_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_orders_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stock_levels: {
         Row: {
           damaged: number
@@ -740,6 +971,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cancel_sales_order: { Args: { _so_id: string }; Returns: undefined }
+      confirm_sales_order: { Args: { _so_id: string }; Returns: undefined }
       has_org_role: {
         Args: {
           _org: string
@@ -748,10 +981,12 @@ export type Database = {
         Returns: boolean
       }
       is_org_member: { Args: { _org: string }; Returns: boolean }
+      next_sales_order_number: { Args: { _org_id: string }; Returns: string }
       receive_purchase_order_item: {
         Args: { _item_id: string; _quantity: number }
         Returns: undefined
       }
+      ship_sales_order: { Args: { _so_id: string }; Returns: undefined }
     }
     Enums: {
       alert_severity: "info" | "warning" | "critical"
@@ -777,6 +1012,15 @@ export type Database = {
         | "received"
         | "closed"
         | "cancelled"
+      so_status:
+        | "draft"
+        | "confirmed"
+        | "processing"
+        | "packed"
+        | "shipped"
+        | "delivered"
+        | "cancelled"
+        | "returned"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -928,6 +1172,16 @@ export const Constants = {
         "received",
         "closed",
         "cancelled",
+      ],
+      so_status: [
+        "draft",
+        "confirmed",
+        "processing",
+        "packed",
+        "shipped",
+        "delivered",
+        "cancelled",
+        "returned",
       ],
     },
   },

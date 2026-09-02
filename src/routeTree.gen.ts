@@ -16,12 +16,14 @@ import { Route as BlogRouteImport } from './routes/blog'
 import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
 import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated/account'
 import { Route as AuthenticatedAlertsRouteImport } from './routes/_authenticated/alerts'
+import { Route as AuthenticatedCustomersRouteImport } from './routes/_authenticated/customers'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedGstFilingRouteImport } from './routes/_authenticated/gst-filing'
 import { Route as AuthenticatedInventoryRouteImport } from './routes/_authenticated/inventory'
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
 import { Route as AuthenticatedProductsRouteImport } from './routes/_authenticated/products'
 import { Route as AuthenticatedPurchaseOrdersRouteImport } from './routes/_authenticated/purchase-orders'
+import { Route as AuthenticatedSalesOrdersRouteImport } from './routes/_authenticated/sales-orders'
 import { Route as AuthenticatedSuppliersRouteImport } from './routes/_authenticated/suppliers'
 import { Route as AuthenticatedWarehousesRouteImport } from './routes/_authenticated/warehouses'
 
@@ -59,6 +61,11 @@ const AuthenticatedAlertsRoute = AuthenticatedAlertsRouteImport.update({
   path: '/alerts',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedCustomersRoute = AuthenticatedCustomersRouteImport.update({
+  id: '/customers',
+  path: '/customers',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -90,6 +97,11 @@ const AuthenticatedPurchaseOrdersRoute =
     path: '/purchase-orders',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedSalesOrdersRoute = AuthenticatedSalesOrdersRouteImport.update({
+  id: '/sales-orders',
+  path: '/sales-orders',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedSuppliersRoute = AuthenticatedSuppliersRouteImport.update({
   id: '/suppliers',
   path: '/suppliers',
@@ -108,12 +120,14 @@ export interface FileRoutesByFullPath {
   '/blog/$slug': typeof BlogSlugRoute
   '/account': typeof AuthenticatedAccountRoute
   '/alerts': typeof AuthenticatedAlertsRoute
+  '/customers': typeof AuthenticatedCustomersRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/gst-filing': typeof AuthenticatedGstFilingRoute
   '/inventory': typeof AuthenticatedInventoryRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/products': typeof AuthenticatedProductsRoute
   '/purchase-orders': typeof AuthenticatedPurchaseOrdersRoute
+  '/sales-orders': typeof AuthenticatedSalesOrdersRoute
   '/suppliers': typeof AuthenticatedSuppliersRoute
   '/warehouses': typeof AuthenticatedWarehousesRoute
 }
@@ -124,12 +138,14 @@ export interface FileRoutesByTo {
   '/blog/$slug': typeof BlogSlugRoute
   '/account': typeof AuthenticatedAccountRoute
   '/alerts': typeof AuthenticatedAlertsRoute
+  '/customers': typeof AuthenticatedCustomersRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/gst-filing': typeof AuthenticatedGstFilingRoute
   '/inventory': typeof AuthenticatedInventoryRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/products': typeof AuthenticatedProductsRoute
   '/purchase-orders': typeof AuthenticatedPurchaseOrdersRoute
+  '/sales-orders': typeof AuthenticatedSalesOrdersRoute
   '/suppliers': typeof AuthenticatedSuppliersRoute
   '/warehouses': typeof AuthenticatedWarehousesRoute
 }
@@ -142,12 +158,14 @@ export interface FileRoutesById {
   '/blog/$slug': typeof BlogSlugRoute
   '/_authenticated/account': typeof AuthenticatedAccountRoute
   '/_authenticated/alerts': typeof AuthenticatedAlertsRoute
+  '/_authenticated/customers': typeof AuthenticatedCustomersRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/gst-filing': typeof AuthenticatedGstFilingRoute
   '/_authenticated/inventory': typeof AuthenticatedInventoryRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
   '/_authenticated/products': typeof AuthenticatedProductsRoute
   '/_authenticated/purchase-orders': typeof AuthenticatedPurchaseOrdersRoute
+  '/_authenticated/sales-orders': typeof AuthenticatedSalesOrdersRoute
   '/_authenticated/suppliers': typeof AuthenticatedSuppliersRoute
   '/_authenticated/warehouses': typeof AuthenticatedWarehousesRoute
 }
@@ -160,12 +178,14 @@ export interface FileRouteTypes {
     | '/blog/$slug'
     | '/account'
     | '/alerts'
+    | '/customers'
     | '/dashboard'
     | '/gst-filing'
     | '/inventory'
     | '/onboarding'
     | '/products'
     | '/purchase-orders'
+    | '/sales-orders'
     | '/suppliers'
     | '/warehouses'
   fileRoutesByTo: FileRoutesByTo
@@ -176,12 +196,14 @@ export interface FileRouteTypes {
     | '/blog/$slug'
     | '/account'
     | '/alerts'
+    | '/customers'
     | '/dashboard'
     | '/gst-filing'
     | '/inventory'
     | '/onboarding'
     | '/products'
     | '/purchase-orders'
+    | '/sales-orders'
     | '/suppliers'
     | '/warehouses'
   id:
@@ -193,12 +215,14 @@ export interface FileRouteTypes {
     | '/blog/$slug'
     | '/_authenticated/account'
     | '/_authenticated/alerts'
+    | '/_authenticated/customers'
     | '/_authenticated/dashboard'
     | '/_authenticated/gst-filing'
     | '/_authenticated/inventory'
     | '/_authenticated/onboarding'
     | '/_authenticated/products'
     | '/_authenticated/purchase-orders'
+    | '/_authenticated/sales-orders'
     | '/_authenticated/suppliers'
     | '/_authenticated/warehouses'
   fileRoutesById: FileRoutesById
@@ -262,6 +286,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAlertsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/customers': {
+      id: '/_authenticated/customers'
+      path: '/customers'
+      fullPath: '/customers'
+      preLoaderRoute: typeof AuthenticatedCustomersRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/dashboard': {
       id: '/_authenticated/dashboard'
       path: '/dashboard'
@@ -304,6 +335,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPurchaseOrdersRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/sales-orders': {
+      id: '/_authenticated/sales-orders'
+      path: '/sales-orders'
+      fullPath: '/sales-orders'
+      preLoaderRoute: typeof AuthenticatedSalesOrdersRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/suppliers': {
       id: '/_authenticated/suppliers'
       path: '/suppliers'
@@ -324,12 +362,14 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAccountRoute: typeof AuthenticatedAccountRoute
   AuthenticatedAlertsRoute: typeof AuthenticatedAlertsRoute
+  AuthenticatedCustomersRoute: typeof AuthenticatedCustomersRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedGstFilingRoute: typeof AuthenticatedGstFilingRoute
   AuthenticatedInventoryRoute: typeof AuthenticatedInventoryRoute
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRoute
   AuthenticatedProductsRoute: typeof AuthenticatedProductsRoute
   AuthenticatedPurchaseOrdersRoute: typeof AuthenticatedPurchaseOrdersRoute
+  AuthenticatedSalesOrdersRoute: typeof AuthenticatedSalesOrdersRoute
   AuthenticatedSuppliersRoute: typeof AuthenticatedSuppliersRoute
   AuthenticatedWarehousesRoute: typeof AuthenticatedWarehousesRoute
 }
@@ -337,12 +377,14 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAccountRoute: AuthenticatedAccountRoute,
   AuthenticatedAlertsRoute: AuthenticatedAlertsRoute,
+  AuthenticatedCustomersRoute: AuthenticatedCustomersRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedGstFilingRoute: AuthenticatedGstFilingRoute,
   AuthenticatedInventoryRoute: AuthenticatedInventoryRoute,
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRoute,
   AuthenticatedProductsRoute: AuthenticatedProductsRoute,
   AuthenticatedPurchaseOrdersRoute: AuthenticatedPurchaseOrdersRoute,
+  AuthenticatedSalesOrdersRoute: AuthenticatedSalesOrdersRoute,
   AuthenticatedSuppliersRoute: AuthenticatedSuppliersRoute,
   AuthenticatedWarehousesRoute: AuthenticatedWarehousesRoute,
 }
