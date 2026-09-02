@@ -226,6 +226,9 @@ function Landing() {
             <a href="#pricing" className="transition-colors hover:text-foreground">
               Pricing
             </a>
+            <Link to="/blog" className="transition-colors hover:text-foreground">
+              Blog
+            </Link>
           </nav>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" className="hidden sm:inline-flex" asChild>
@@ -246,10 +249,7 @@ function Landing() {
         {/* Hero */}
         <section className="hero-glow relative overflow-hidden">
           <div className="mx-auto max-w-6xl px-5 pt-20 pb-16 text-center md:pt-28">
-            <Badge
-              variant="outline"
-              className="mb-6 border-primary/30 bg-primary/10 text-primary"
-            >
+            <Badge variant="outline" className="mb-6 border-primary/30 bg-primary/10 text-primary">
               <Sparkles className="mr-1 size-3" /> Built India-first, GST-ready
             </Badge>
             <h1 className="mx-auto max-w-3xl text-balance text-4xl leading-[1.05] font-bold md:text-6xl">
@@ -445,15 +445,30 @@ function Landing() {
             {[
               {
                 title: "Sales channels",
-                items: ["Storefront platforms", "Indian marketplaces", "POS terminals", "Custom API"],
+                items: [
+                  "Storefront platforms",
+                  "Indian marketplaces",
+                  "POS terminals",
+                  "Custom API",
+                ],
               },
               {
                 title: "Finance",
-                items: ["Tally-style exports", "Cloud accounting APIs", "Payment records", "Tax mapping"],
+                items: [
+                  "Tally-style exports",
+                  "Cloud accounting APIs",
+                  "Payment records",
+                  "Tax mapping",
+                ],
               },
               {
                 title: "Sync controls",
-                items: ["Pull, push or bidirectional", "Source-of-truth rules", "Webhook event log", "Failure alerts"],
+                items: [
+                  "Pull, push or bidirectional",
+                  "Source-of-truth rules",
+                  "Webhook event log",
+                  "Failure alerts",
+                ],
               },
             ].map((group) => (
               <div key={group.title} className="panel p-6">
@@ -506,9 +521,7 @@ function Landing() {
                 key={plan.name}
                 className={`panel flex flex-col p-6 ${plan.featured ? "glow border-primary/40" : ""}`}
               >
-                {plan.featured && (
-                  <Badge className="mb-3 w-fit">Most popular</Badge>
-                )}
+                {plan.featured && <Badge className="mb-3 w-fit">Most popular</Badge>}
                 <h3 className="font-display text-lg font-semibold">{plan.name}</h3>
                 <p className="mt-1 text-sm text-muted-foreground">{plan.blurb}</p>
                 <p className="mt-5 flex items-baseline gap-1">
@@ -561,8 +574,8 @@ function Landing() {
               Stop counting. Start deciding.
             </h2>
             <p className="mt-4 text-muted-foreground">
-              Bring every warehouse, channel and supplier into one view — and let StockPilot tell you
-              what needs attention today.
+              Bring every warehouse, channel and supplier into one view — and let StockPilot tell
+              you what needs attention today.
             </p>
             <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Button size="lg" className="w-full sm:w-auto" asChild>

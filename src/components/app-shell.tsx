@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   Bell,
+  BookOpen,
   Boxes,
   Check,
   ClipboardList,
@@ -285,6 +286,11 @@ export function AppShell({
                 <UserIcon className="size-4" />
                 Profile
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate({ to: "/blog" })}>
+                <BookOpen className="size-4" />
+                Blog
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem onClick={signOut}>
                 <LogOut className="size-4" />
                 Sign out
