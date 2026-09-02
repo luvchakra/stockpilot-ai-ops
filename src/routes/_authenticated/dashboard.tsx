@@ -220,7 +220,7 @@ function Dashboard() {
       title="Operations dashboard"
       description={org ? `${org.name} · live across all warehouses` : "Loading workspace…"}
     >
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-6">
         <Kpi
           label="Inventory value"
           value={data ? inr.format(data.stockValue) : undefined}
@@ -327,7 +327,7 @@ function Dashboard() {
         </CardContent>
       </Card>
 
-      <div className="mt-4 grid gap-4 sm:mt-6 lg:grid-cols-3">
+      <div className="mt-4 grid gap-4 sm:mt-6 sm:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Reorder watchlist</CardTitle>
@@ -388,13 +388,13 @@ function Dashboard() {
                 {data.gstRiskCount > 0 ? (
                   <Link
                     to="/gst-filing"
-                    className="flex items-center justify-between gap-3 text-sm hover:underline"
+                    className="flex items-start justify-between gap-3 text-sm hover:underline"
                   >
-                    <p className="min-w-0 truncate font-medium">
+                    <p className="min-w-0 font-medium">
                       {data.gstRiskCount} purchase{data.gstRiskCount === 1 ? "" : "s"} this month{" "}
                       {data.gstRiskCount === 1 ? "has" : "have"} a missing/invalid supplier GSTIN
                     </p>
-                    <Badge variant="destructive" className="shrink-0">
+                    <Badge variant="destructive" className="mt-0.5 shrink-0">
                       <FileWarning className="size-3" />
                       ITC risk
                     </Badge>
