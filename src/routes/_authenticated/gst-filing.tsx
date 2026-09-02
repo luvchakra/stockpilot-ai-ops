@@ -241,7 +241,7 @@ function GstFiling() {
           <div className="flex items-start gap-3 rounded-lg border border-warn/40 bg-warn/10 px-4 py-3 text-sm text-warn">
             <AlertTriangle className="mt-0.5 size-4 shrink-0" />
             <span>
-              Your workspace has no GSTIN on file, so purchase orders can't reliably split CGST/SGST
+              Your business has no GSTIN on file, so purchase orders can't reliably split CGST/SGST
               vs. IGST. Set it under Account → GST profile first.
             </span>
           </div>
@@ -251,7 +251,7 @@ function GstFiling() {
           <div className="flex items-start gap-3 rounded-lg border border-warn/40 bg-warn/10 px-4 py-3 text-sm text-warn">
             <AlertTriangle className="mt-0.5 size-4 shrink-0" />
             <span>
-              Your workspace is registered under the{" "}
+              Your business is registered under the{" "}
               <span className="font-medium">Composition Scheme</span> — composition dealers can't
               claim input tax credit on purchases. The tax below is a real cost to you, not a
               reclaimable credit; this register is for your own records, not for an ITC claim.

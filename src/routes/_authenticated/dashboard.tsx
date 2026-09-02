@@ -218,7 +218,7 @@ function Dashboard() {
   return (
     <AppShell
       title="Operations dashboard"
-      description={org ? `${org.name} · live across all warehouses` : "Loading workspace…"}
+      description={org ? `${org.name} · live across all warehouses` : "Loading business…"}
     >
       <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-6">
         <Kpi
@@ -377,7 +377,7 @@ function Dashboard() {
                     className="flex items-center justify-between gap-3 text-sm hover:underline"
                   >
                     <p className="min-w-0 truncate font-medium">
-                      Set up your workspace's GST profile
+                      Set up your business's GST profile
                     </p>
                     <Badge variant="outline" className="shrink-0 border-warn/40 text-warn">
                       <Receipt className="size-3" />
@@ -535,7 +535,7 @@ function buildBrief(
   },
 ) {
   const parts: string[] = [
-    `${orgName ?? "Your workspace"}'s inventory is worth ${inr.format(data.stockValue)} across ${num.format(data.productCount)} products.`,
+    `${orgName ?? "Your business"}'s inventory is worth ${inr.format(data.stockValue)} across ${num.format(data.productCount)} products.`,
   ];
   if (data.stockout > 0 || data.low > 0) {
     parts.push(

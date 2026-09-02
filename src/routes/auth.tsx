@@ -21,12 +21,12 @@ export const Route = createFileRoute("/auth")({
       {
         name: "description",
         content:
-          "Access your StockPilot workspace to manage inventory, warehouses, suppliers and procurement across your business.",
+          "Access your StockPilot account to manage inventory, warehouses, suppliers and procurement across your business.",
       },
       { property: "og:title", content: "Sign in to StockPilot" },
       {
         property: "og:description",
-        content: "Access your StockPilot inventory and procurement workspace.",
+        content: "Access your StockPilot inventory and procurement business.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -105,8 +105,9 @@ function AuthPage() {
               </span>
               <h2 className="mt-4 font-display text-lg font-semibold">Check your inbox</h2>
               <p className="mt-2 text-sm text-muted-foreground">
-                We sent a confirmation link to <span className="font-medium text-foreground">{email}</span>.
-                Click it to activate your account — you'll land on your dashboard automatically.
+                We sent a confirmation link to{" "}
+                <span className="font-medium text-foreground">{email}</span>. Click it to activate
+                your account — you'll land on your dashboard automatically.
               </p>
               <Button
                 variant="ghost"
@@ -196,9 +197,8 @@ function AuthPage() {
           )}
         </div>
 
-
         <p className="mt-6 text-center text-xs text-muted-foreground">
-          Multi-tenant workspaces with row-level isolation. GST-ready, INR-native.
+          Multi-tenant businesses with row-level isolation. GST-ready, INR-native.
         </p>
       </div>
     </main>

@@ -12,13 +12,13 @@ import { Boxes } from "lucide-react";
 export const Route = createFileRoute("/_authenticated/onboarding")({
   head: () => ({
     meta: [
-      { title: "Create your workspace — StockPilot" },
+      { title: "Create your business — StockPilot" },
       {
         name: "description",
         content:
           "Set up your StockPilot organisation and first warehouse to start tracking stock, suppliers and procurement.",
       },
-      { property: "og:title", content: "Create your StockPilot workspace" },
+      { property: "og:title", content: "Create your StockPilot business" },
       {
         property: "og:description",
         content: "Set up your organisation and first warehouse in StockPilot.",
@@ -36,7 +36,7 @@ function slugify(value: string) {
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "")
-      .slice(0, 40) || "workspace"
+      .slice(0, 40) || "business"
   );
 }
 
@@ -79,7 +79,7 @@ function Onboarding() {
 
       setActiveOrgId(queryClient, org.id);
       queryClient.invalidateQueries({ queryKey: ["memberships"] });
-      toast.success("Workspace ready");
+      toast.success("Business ready");
       navigate({ to: "/dashboard" });
     } catch (err) {
       // Supabase query errors (e.g. an RLS rejection) are plain
@@ -89,9 +89,11 @@ function Onboarding() {
       const message =
         err instanceof Error
           ? err.message
-          : err && typeof err === "object" && typeof (err as { message?: unknown }).message === "string"
+          : err &&
+              typeof err === "object" &&
+              typeof (err as { message?: unknown }).message === "string"
             ? (err as { message: string }).message
-            : "Could not create workspace";
+            : "Could not create business";
       toast.error(message);
     } finally {
       setBusy(false);
@@ -106,11 +108,9 @@ function Onboarding() {
           <span className="font-display text-xl font-bold tracking-tight">StockPilot</span>
         </div>
         <div className="rounded-2xl border border-border bg-card p-6">
-          <h2 className="font-display text-2xl font-bold tracking-tight">
-            Create your workspace
-          </h2>
+          <h2 className="font-display text-2xl font-bold tracking-tight">Create your business</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Every workspace is isolated at the database level. You can invite your team later.
+            Every business is isolated at the database level. You can invite your team later.
           </p>
           <form onSubmit={submit} className="mt-6 space-y-4">
             <div className="space-y-2">
@@ -153,7 +153,7 @@ function Onboarding() {
               </div>
             </div>
             <Button type="submit" className="w-full" disabled={busy}>
-              {busy ? "Setting up…" : "Create workspace"}
+              {busy ? "Setting up…" : "Create business"}
             </Button>
           </form>
         </div>

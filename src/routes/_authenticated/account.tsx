@@ -139,7 +139,7 @@ function Account() {
       toast.error(error.message);
       return;
     }
-    toast.success("Workspace updated");
+    toast.success("Business updated");
     queryClient.invalidateQueries({ queryKey: ["memberships"] });
   };
 
@@ -175,7 +175,7 @@ function Account() {
         {org ? (
           <Card className="max-w-lg">
             <CardHeader>
-              <CardTitle>Workspace</CardTitle>
+              <CardTitle>Business</CardTitle>
             </CardHeader>
             <CardContent>
               {canEditOrg ? (
@@ -249,7 +249,7 @@ function Account() {
                     <span className="text-muted-foreground">Timezone:</span> {org.timezone}
                   </p>
                   <p className="mt-2 text-xs text-muted-foreground">
-                    Only workspace owners and admins can edit these details.
+                    Only business owners and admins can edit these details.
                   </p>
                 </div>
               )}
@@ -266,7 +266,7 @@ function Account() {
               {!org.gstin && orgGstType !== "unregistered" ? (
                 <p className="mb-4 rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn">
                   No GSTIN on file yet — purchase orders can't split CGST/SGST vs. IGST correctly
-                  until your workspace's GSTIN and state are set.
+                  until your business's GSTIN and state are set.
                 </p>
               ) : null}
               {canEditOrg ? (
