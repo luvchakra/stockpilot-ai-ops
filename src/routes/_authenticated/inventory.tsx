@@ -26,7 +26,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { num } from "@/lib/format";
 
 export const Route = createFileRoute("/_authenticated/inventory")({
@@ -147,7 +154,10 @@ function Inventory() {
       warehouse_id: row.warehouse_id,
       type: "adjustment",
     });
-    setAdjustingRow({ product: row.products?.name ?? "this product", warehouse: row.warehouses?.name ?? "this warehouse" });
+    setAdjustingRow({
+      product: row.products?.name ?? "this product",
+      warehouse: row.warehouses?.name ?? "this warehouse",
+    });
     setOpen(true);
   };
 
@@ -171,7 +181,9 @@ function Inventory() {
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{adjustingRow ? "Edit stock level" : "Record stock movement"}</DialogTitle>
+              <DialogTitle>
+                {adjustingRow ? "Edit stock level" : "Record stock movement"}
+              </DialogTitle>
             </DialogHeader>
             {adjustingRow ? (
               <p className="-mt-2 text-sm text-muted-foreground">
@@ -300,49 +312,108 @@ function Inventory() {
           </p>
         </div>
       ) : (
-        <div className="panel overflow-x-auto rounded-2xl border border-border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Product</TableHead>
-                <TableHead>Warehouse</TableHead>
-                <TableHead className="text-right">On hand</TableHead>
-                <TableHead className="text-right">Reserved</TableHead>
-                <TableHead className="text-right">Available</TableHead>
-                <TableHead className="text-right">Incoming</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {stockLevels.data.map((row) => {
-                const available = Number(row.quantity) - Number(row.reserved);
-                const low =
-                  row.products?.reorder_point != null &&
-                  Number(row.quantity) <= Number(row.products.reorder_point);
-                return (
-                  <TableRow key={row.id}>
-                    <TableCell className="font-medium">
-                      {row.products?.name} <span className="text-muted-foreground">({row.products?.sku})</span>
-                    </TableCell>
-                    <TableCell>{row.warehouses?.name}</TableCell>
-                    <TableCell className={`text-right ${low ? "font-semibold text-destructive" : ""}`}>
-                      {num.format(Number(row.quantity))}
-                    </TableCell>
-                    <TableCell className="text-right">{num.format(Number(row.reserved))}</TableCell>
-                    <TableCell className="text-right">{num.format(available)}</TableCell>
-                    <TableCell className="text-right">{num.format(Number(row.incoming))}</TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" onClick={() => startEdit(row)}>
-                        <Pencil className="size-4" />
-                        Edit
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
+        <>
+          <div className="hidden overflow-x-auto rounded-2xl border border-border panel sm:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Product</TableHead>
+                  <TableHead>Warehouse</TableHead>
+                  <TableHead className="text-right">On hand</TableHead>
+                  <TableHead className="text-right">Reserved</TableHead>
+                  <TableHead className="text-right">Available</TableHead>
+                  <TableHead className="text-right">Incoming</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {stockLevels.data.map((row) => {
+                  const available = Number(row.quantity) - Number(row.reserved);
+                  const low =
+                    row.products?.reorder_point != null &&
+                    Number(row.quantity) <= Number(row.products.reorder_point);
+                  return (
+                    <TableRow key={row.id}>
+                      <TableCell className="font-medium">
+                        {row.products?.name}{" "}
+                        <span className="text-muted-foreground">({row.products?.sku})</span>
+                      </TableCell>
+                      <TableCell>{row.warehouses?.name}</TableCell>
+                      <TableCell
+                        className={`text-right ${low ? "font-semibold text-destructive" : ""}`}
+                      >
+                        {num.format(Number(row.quantity))}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {num.format(Number(row.reserved))}
+                      </TableCell>
+                      <TableCell className="text-right">{num.format(available)}</TableCell>
+                      <TableCell className="text-right">
+                        {num.format(Number(row.incoming))}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="sm" onClick={() => startEdit(row)}>
+                          <Pencil className="size-4" />
+                          Edit
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div className="space-y-3 sm:hidden">
+            {stockLevels.data.map((row) => {
+              const available = Number(row.quantity) - Number(row.reserved);
+              const low =
+                row.products?.reorder_point != null &&
+                Number(row.quantity) <= Number(row.products.reorder_point);
+              return (
+                <div key={row.id} className="panel space-y-3 rounded-2xl border border-border p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{row.products?.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {row.products?.sku} · {row.warehouses?.name}
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => startEdit(row)}
+                      className="shrink-0"
+                    >
+                      <Pencil className="size-4" />
+                      Edit
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+                    <div>
+                      <p className="text-xs text-muted-foreground">On hand</p>
+                      <p className={low ? "font-semibold text-destructive" : ""}>
+                        {num.format(Number(row.quantity))}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Reserved</p>
+                      <p>{num.format(Number(row.reserved))}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Available</p>
+                      <p>{num.format(available)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Incoming</p>
+                      <p>{num.format(Number(row.incoming))}</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
       )}
     </AppShell>
   );

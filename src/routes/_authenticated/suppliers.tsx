@@ -339,59 +339,113 @@ function Suppliers() {
           <p className="text-sm text-muted-foreground">No suppliers yet. Add your first one.</p>
         </div>
       ) : (
-        <div className="panel overflow-x-auto rounded-2xl border border-border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Contact</TableHead>
-                <TableHead>Phone</TableHead>
-                <TableHead>Lead time</TableHead>
-                <TableHead>Rating</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {suppliers.data.map((sup) => (
-                <TableRow key={sup.id}>
-                  <TableCell className="font-medium">{sup.name}</TableCell>
-                  <TableCell>{sup.contact_person ?? "—"}</TableCell>
-                  <TableCell>{sup.phone ?? "—"}</TableCell>
-                  <TableCell>{sup.lead_time_days}d</TableCell>
-                  <TableCell>
+        <>
+          <div className="hidden overflow-x-auto rounded-2xl border border-border panel sm:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Contact</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead>Lead time</TableHead>
+                  <TableHead>Rating</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {suppliers.data.map((sup) => (
+                  <TableRow key={sup.id}>
+                    <TableCell className="font-medium">{sup.name}</TableCell>
+                    <TableCell>{sup.contact_person ?? "—"}</TableCell>
+                    <TableCell>{sup.phone ?? "—"}</TableCell>
+                    <TableCell>{sup.lead_time_days}d</TableCell>
+                    <TableCell>
+                      {Number(sup.rating) > 0 ? (
+                        <span className="flex items-center gap-1">
+                          <Star className="size-3.5 fill-warn text-warn" />
+                          {Number(sup.rating).toFixed(1)}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={sup.is_active ? "default" : "secondary"}>
+                        {sup.is_active ? "Active" : "Inactive"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="sm" onClick={() => startEdit(sup)}>
+                        <Pencil className="size-4" />
+                        Edit
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          toggleActive.mutate({ id: sup.id, is_active: !sup.is_active })
+                        }
+                      >
+                        {sup.is_active ? "Deactivate" : "Activate"}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div className="space-y-3 sm:hidden">
+            {suppliers.data.map((sup) => (
+              <div key={sup.id} className="panel space-y-3 rounded-2xl border border-border p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{sup.name}</p>
+                    <p className="text-xs text-muted-foreground">{sup.contact_person ?? "—"}</p>
+                  </div>
+                  <Badge variant={sup.is_active ? "default" : "secondary"} className="shrink-0">
+                    {sup.is_active ? "Active" : "Inactive"}
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Phone</p>
+                    <p className="truncate">{sup.phone ?? "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Lead time</p>
+                    <p>{sup.lead_time_days}d</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Rating</p>
                     {Number(sup.rating) > 0 ? (
                       <span className="flex items-center gap-1">
                         <Star className="size-3.5 fill-warn text-warn" />
                         {Number(sup.rating).toFixed(1)}
                       </span>
                     ) : (
-                      "—"
+                      <p>—</p>
                     )}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={sup.is_active ? "default" : "secondary"}>
-                      {sup.is_active ? "Active" : "Inactive"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="sm" onClick={() => startEdit(sup)}>
-                      <Pencil className="size-4" />
-                      Edit
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => toggleActive.mutate({ id: sup.id, is_active: !sup.is_active })}
-                    >
-                      {sup.is_active ? "Deactivate" : "Activate"}
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 border-t border-border pt-3">
+                  <Button variant="ghost" size="sm" onClick={() => startEdit(sup)}>
+                    <Pencil className="size-4" />
+                    Edit
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => toggleActive.mutate({ id: sup.id, is_active: !sup.is_active })}
+                  >
+                    {sup.is_active ? "Deactivate" : "Activate"}
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
     </AppShell>
   );

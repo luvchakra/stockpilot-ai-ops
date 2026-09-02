@@ -394,61 +394,122 @@ function Products() {
           <p className="text-sm text-muted-foreground">No products yet. Add your first SKU.</p>
         </div>
       ) : (
-        <div className="panel overflow-x-auto rounded-2xl border border-border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>SKU</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Brand</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Supplier</TableHead>
-                <TableHead className="text-right">Cost</TableHead>
-                <TableHead className="text-right">Price</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {products.data.map((p) => (
-                <TableRow key={p.id}>
-                  <TableCell className="font-mono text-xs">{p.sku}</TableCell>
-                  <TableCell className="font-medium">{p.name}</TableCell>
-                  <TableCell>{p.brand ?? "—"}</TableCell>
-                  <TableCell>{p.categories?.name ?? "—"}</TableCell>
-                  <TableCell>{p.suppliers?.name ?? "—"}</TableCell>
-                  <TableCell className="text-right">{inr.format(Number(p.cost_price))}</TableCell>
-                  <TableCell className="text-right">
-                    {inr.format(Number(p.selling_price))}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={p.status === "active" ? "default" : "secondary"}>
-                      {p.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="sm" onClick={() => startEdit(p)}>
-                      <Pencil className="size-4" />
-                      Edit
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() =>
-                        toggleStatus.mutate({
-                          id: p.id,
-                          status: p.status === "active" ? "inactive" : "active",
-                        })
-                      }
-                    >
-                      {p.status === "active" ? "Deactivate" : "Activate"}
-                    </Button>
-                  </TableCell>
+        <>
+          <div className="hidden overflow-x-auto rounded-2xl border border-border panel sm:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>SKU</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Brand</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Supplier</TableHead>
+                  <TableHead className="text-right">Cost</TableHead>
+                  <TableHead className="text-right">Price</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+              </TableHeader>
+              <TableBody>
+                {products.data.map((p) => (
+                  <TableRow key={p.id}>
+                    <TableCell className="font-mono text-xs">{p.sku}</TableCell>
+                    <TableCell className="font-medium">{p.name}</TableCell>
+                    <TableCell>{p.brand ?? "—"}</TableCell>
+                    <TableCell>{p.categories?.name ?? "—"}</TableCell>
+                    <TableCell>{p.suppliers?.name ?? "—"}</TableCell>
+                    <TableCell className="text-right">{inr.format(Number(p.cost_price))}</TableCell>
+                    <TableCell className="text-right">
+                      {inr.format(Number(p.selling_price))}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={p.status === "active" ? "default" : "secondary"}>
+                        {p.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="sm" onClick={() => startEdit(p)}>
+                        <Pencil className="size-4" />
+                        Edit
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          toggleStatus.mutate({
+                            id: p.id,
+                            status: p.status === "active" ? "inactive" : "active",
+                          })
+                        }
+                      >
+                        {p.status === "active" ? "Deactivate" : "Activate"}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div className="space-y-3 sm:hidden">
+            {products.data.map((p) => (
+              <div key={p.id} className="panel space-y-3 rounded-2xl border border-border p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{p.name}</p>
+                    <p className="font-mono text-xs text-muted-foreground">{p.sku}</p>
+                  </div>
+                  <Badge
+                    variant={p.status === "active" ? "default" : "secondary"}
+                    className="shrink-0"
+                  >
+                    {p.status}
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Brand</p>
+                    <p className="truncate">{p.brand ?? "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Category</p>
+                    <p className="truncate">{p.categories?.name ?? "—"}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-xs text-muted-foreground">Supplier</p>
+                    <p className="truncate">{p.suppliers?.name ?? "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Cost</p>
+                    <p>{inr.format(Number(p.cost_price))}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Price</p>
+                    <p>{inr.format(Number(p.selling_price))}</p>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 border-t border-border pt-3">
+                  <Button variant="ghost" size="sm" onClick={() => startEdit(p)}>
+                    <Pencil className="size-4" />
+                    Edit
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      toggleStatus.mutate({
+                        id: p.id,
+                        status: p.status === "active" ? "inactive" : "active",
+                      })
+                    }
+                  >
+                    {p.status === "active" ? "Deactivate" : "Activate"}
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
     </AppShell>
   );

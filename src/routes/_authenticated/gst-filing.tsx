@@ -300,42 +300,88 @@ function GstFiling() {
                     No purchase orders in this period yet.
                   </p>
                 ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Supplier</TableHead>
-                        <TableHead>GSTIN</TableHead>
-                        <TableHead className="text-right">Taxable value</TableHead>
-                        <TableHead className="text-right">Tax</TableHead>
-                        <TableHead>GSTIN status</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
+                  <>
+                    <div className="hidden overflow-x-auto sm:block">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Supplier</TableHead>
+                            <TableHead>GSTIN</TableHead>
+                            <TableHead className="text-right">Taxable value</TableHead>
+                            <TableHead className="text-right">Tax</TableHead>
+                            <TableHead>GSTIN status</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {summary.bySupplier.map((s) => (
+                            <TableRow key={s.name + s.gstin}>
+                              <TableCell className="font-medium">{s.name}</TableCell>
+                              <TableCell className="font-mono text-xs">{s.gstin ?? "—"}</TableCell>
+                              <TableCell className="text-right">
+                                {inr.format(s.taxableValue)}
+                              </TableCell>
+                              <TableCell className="text-right">{inr.format(s.tax)}</TableCell>
+                              <TableCell>
+                                {s.risk === "missing" ? (
+                                  <Badge variant="destructive">
+                                    <FileWarning className="size-3" />
+                                    No GSTIN — reverse charge?
+                                  </Badge>
+                                ) : s.risk === "invalid" ? (
+                                  <Badge variant="destructive">
+                                    <FileWarning className="size-3" />
+                                    Invalid GSTIN
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline">OK</Badge>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+
+                    <div className="space-y-3 sm:hidden">
                       {summary.bySupplier.map((s) => (
-                        <TableRow key={s.name + s.gstin}>
-                          <TableCell className="font-medium">{s.name}</TableCell>
-                          <TableCell className="font-mono text-xs">{s.gstin ?? "—"}</TableCell>
-                          <TableCell className="text-right">{inr.format(s.taxableValue)}</TableCell>
-                          <TableCell className="text-right">{inr.format(s.tax)}</TableCell>
-                          <TableCell>
+                        <div key={s.name + s.gstin} className="rounded-lg border border-border p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="truncate font-medium">{s.name}</p>
+                              <p className="truncate font-mono text-xs text-muted-foreground">
+                                {s.gstin ?? "—"}
+                              </p>
+                            </div>
                             {s.risk === "missing" ? (
-                              <Badge variant="destructive">
+                              <Badge variant="destructive" className="shrink-0">
                                 <FileWarning className="size-3" />
-                                No GSTIN — reverse charge?
+                                No GSTIN
                               </Badge>
                             ) : s.risk === "invalid" ? (
-                              <Badge variant="destructive">
+                              <Badge variant="destructive" className="shrink-0">
                                 <FileWarning className="size-3" />
-                                Invalid GSTIN
+                                Invalid
                               </Badge>
                             ) : (
-                              <Badge variant="outline">OK</Badge>
+                              <Badge variant="outline" className="shrink-0">
+                                OK
+                              </Badge>
                             )}
-                          </TableCell>
-                        </TableRow>
+                          </div>
+                          <div className="mt-2 grid grid-cols-2 gap-x-3 text-sm">
+                            <div>
+                              <p className="text-xs text-muted-foreground">Taxable value</p>
+                              <p>{inr.format(s.taxableValue)}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Tax</p>
+                              <p>{inr.format(s.tax)}</p>
+                            </div>
+                          </div>
+                        </div>
                       ))}
-                    </TableBody>
-                  </Table>
+                    </div>
+                  </>
                 )}
               </CardContent>
             </Card>
@@ -348,24 +394,28 @@ function GstFiling() {
                 {summary.byHsn.length === 0 ? (
                   <p className="text-sm text-muted-foreground">Nothing to summarize yet.</p>
                 ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>HSN code</TableHead>
-                        <TableHead className="text-right">Taxable value</TableHead>
-                        <TableHead className="text-right">Tax</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {summary.byHsn.map((h) => (
-                        <TableRow key={h.hsn}>
-                          <TableCell className="font-mono text-xs">{h.hsn}</TableCell>
-                          <TableCell className="text-right">{inr.format(h.taxableValue)}</TableCell>
-                          <TableCell className="text-right">{inr.format(h.tax)}</TableCell>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>HSN code</TableHead>
+                          <TableHead className="text-right">Taxable value</TableHead>
+                          <TableHead className="text-right">Tax</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {summary.byHsn.map((h) => (
+                          <TableRow key={h.hsn}>
+                            <TableCell className="font-mono text-xs">{h.hsn}</TableCell>
+                            <TableCell className="text-right">
+                              {inr.format(h.taxableValue)}
+                            </TableCell>
+                            <TableCell className="text-right">{inr.format(h.tax)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                 )}
               </CardContent>
             </Card>
