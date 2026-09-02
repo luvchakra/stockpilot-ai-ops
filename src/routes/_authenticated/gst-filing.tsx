@@ -118,7 +118,13 @@ function GstFiling() {
 
     const bySupplier = new Map<
       string,
-      { name: string; gstin: string | null; taxableValue: number; tax: number; itcRisk: boolean }
+      {
+        name: string;
+        gstin: string | null;
+        taxableValue: number;
+        tax: number;
+        risk: "none" | "missing" | "invalid";
+      }
     >();
     const byHsn = new Map<string, { hsn: string; taxableValue: number; tax: number }>();
 
@@ -130,14 +136,18 @@ function GstFiling() {
 
       const supplierName = po.suppliers?.name ?? "Unknown supplier";
       const gstin = po.suppliers?.gst_number ?? null;
-      const itcRisk = !gstin || !isValidGstin(gstin);
+      const risk: "none" | "missing" | "invalid" = !gstin
+        ? "missing"
+        : !isValidGstin(gstin)
+          ? "invalid"
+          : "none";
       const supKey = supplierName + "|" + (gstin ?? "");
       const supEntry = bySupplier.get(supKey) ?? {
         name: supplierName,
         gstin,
         taxableValue: 0,
         tax: 0,
-        itcRisk,
+        risk,
       };
       supEntry.taxableValue += Number(po.subtotal);
       supEntry.tax += Number(po.cgst_amount) + Number(po.sgst_amount) + Number(po.igst_amount);
@@ -181,20 +191,28 @@ function GstFiling() {
         "SGST",
         "IGST",
         "Total tax",
-        "ITC risk",
+        "GSTIN status",
       ],
-      ...(purchases.data ?? []).map((po) => [
-        po.po_number,
-        po.order_date,
-        po.suppliers?.name ?? "",
-        po.suppliers?.gst_number ?? "",
-        Number(po.subtotal),
-        Number(po.cgst_amount),
-        Number(po.sgst_amount),
-        Number(po.igst_amount),
-        Number(po.cgst_amount) + Number(po.sgst_amount) + Number(po.igst_amount),
-        !isValidGstin(po.suppliers?.gst_number) ? "Yes" : "No",
-      ]),
+      ...(purchases.data ?? []).map((po) => {
+        const supplierGstin = po.suppliers?.gst_number ?? null;
+        const gstinStatus = !supplierGstin
+          ? "No GSTIN — likely unregistered, check reverse charge"
+          : !isValidGstin(supplierGstin)
+            ? "Invalid GSTIN — verify with supplier"
+            : "OK";
+        return [
+          po.po_number,
+          po.order_date,
+          po.suppliers?.name ?? "",
+          supplierGstin ?? "",
+          Number(po.subtotal),
+          Number(po.cgst_amount),
+          Number(po.sgst_amount),
+          Number(po.igst_amount),
+          Number(po.cgst_amount) + Number(po.sgst_amount) + Number(po.igst_amount),
+          gstinStatus,
+        ];
+      }),
       [],
       ["HSN-wise summary"],
       ["HSN code", "Taxable value", "Tax"],
@@ -204,6 +222,7 @@ function GstFiling() {
   };
 
   const missingGstProfile = !org?.gstin && org?.gst_registration_type !== "unregistered";
+  const isComposition = org?.gst_registration_type === "composition";
 
   return (
     <AppShell
@@ -224,6 +243,18 @@ function GstFiling() {
             <span>
               Your workspace has no GSTIN on file, so purchase orders can't reliably split CGST/SGST
               vs. IGST. Set it under Account → GST profile first.
+            </span>
+          </div>
+        ) : null}
+
+        {isComposition ? (
+          <div className="flex items-start gap-3 rounded-lg border border-warn/40 bg-warn/10 px-4 py-3 text-sm text-warn">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+            <span>
+              Your workspace is registered under the{" "}
+              <span className="font-medium">Composition Scheme</span> — composition dealers can't
+              claim input tax credit on purchases. The tax below is a real cost to you, not a
+              reclaimable credit; this register is for your own records, not for an ITC claim.
             </span>
           </div>
         ) : null}
@@ -276,7 +307,7 @@ function GstFiling() {
                         <TableHead>GSTIN</TableHead>
                         <TableHead className="text-right">Taxable value</TableHead>
                         <TableHead className="text-right">Tax</TableHead>
-                        <TableHead>ITC risk</TableHead>
+                        <TableHead>GSTIN status</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -287,10 +318,15 @@ function GstFiling() {
                           <TableCell className="text-right">{inr.format(s.taxableValue)}</TableCell>
                           <TableCell className="text-right">{inr.format(s.tax)}</TableCell>
                           <TableCell>
-                            {s.itcRisk ? (
+                            {s.risk === "missing" ? (
                               <Badge variant="destructive">
                                 <FileWarning className="size-3" />
-                                Missing/invalid GSTIN
+                                No GSTIN — reverse charge?
+                              </Badge>
+                            ) : s.risk === "invalid" ? (
+                              <Badge variant="destructive">
+                                <FileWarning className="size-3" />
+                                Invalid GSTIN
                               </Badge>
                             ) : (
                               <Badge variant="outline">OK</Badge>
