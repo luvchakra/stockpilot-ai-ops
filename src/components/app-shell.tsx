@@ -133,6 +133,52 @@ export function AppShell({
   const { mode, setMode } = useTheme();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
+  // Labeled groups are collapsed by default (tap a group to reveal its
+  // items) -- except whichever one holds the current page, so landing on
+  // a route never hides its own nav entry. A returning visitor's manual
+  // expand/collapse choices are remembered across sessions.
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(() => {
+    const defaults: Record<string, boolean> = {};
+    for (const g of NAV_GROUPS) {
+      if (g.label) defaults[g.label] = true;
+    }
+    if (typeof window !== "undefined") {
+      try {
+        const stored = window.localStorage.getItem("stockpilot.nav.collapsed");
+        if (stored) Object.assign(defaults, JSON.parse(stored));
+      } catch {
+        // private browsing / storage disabled -- fall back to defaults
+      }
+    }
+    const activeGroup = NAV_GROUPS.find(
+      (g) => g.label && g.items.some((item) => item.to === pathname),
+    );
+    if (activeGroup?.label) defaults[activeGroup.label] = false;
+    return defaults;
+  });
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("stockpilot.nav.collapsed", JSON.stringify(collapsedGroups));
+    } catch {
+      // ignore
+    }
+  }, [collapsedGroups]);
+
+  useEffect(() => {
+    const activeGroup = NAV_GROUPS.find(
+      (g) => g.label && g.items.some((item) => item.to === pathname),
+    );
+    if (!activeGroup?.label) return;
+    setCollapsedGroups((prev) =>
+      prev[activeGroup.label!] ? { ...prev, [activeGroup.label!]: false } : prev,
+    );
+  }, [pathname]);
+
+  const toggleGroup = (label: string) => {
+    setCollapsedGroups((prev) => ({ ...prev, [label]: !prev[label] }));
+  };
+
   useEffect(() => {
     if (!loading && memberships.length === 0) navigate({ to: "/onboarding" });
   }, [loading, memberships.length, navigate]);
@@ -189,18 +235,31 @@ export function AppShell({
 
   const navLinks = (onNavigate?: () => void) => (
     <nav className="flex flex-1 flex-col gap-1">
-      {NAV_GROUPS.map((group, i) => (
-        <div key={group.label ?? `group-${i}`} className={i > 0 ? "mt-4" : undefined}>
-          {group.label ? (
-            <p className="mb-1 px-3 text-xs font-medium uppercase tracking-wide text-muted-foreground/70">
-              {group.label}
-            </p>
-          ) : null}
-          <div className="flex flex-col gap-1">
-            {group.items.map((item) => navItem(item, onNavigate))}
+      {NAV_GROUPS.map((group, i) => {
+        const collapsed = !!(group.label && collapsedGroups[group.label]);
+        return (
+          <div key={group.label ?? `group-${i}`} className={i > 0 ? "mt-2" : undefined}>
+            {group.label ? (
+              <button
+                type="button"
+                onClick={() => toggleGroup(group.label!)}
+                aria-expanded={!collapsed}
+                className="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground/70 transition-colors hover:bg-sidebar-accent/40 hover:text-foreground"
+              >
+                {group.label}
+                <ChevronDown
+                  className={cn("size-3.5 transition-transform", collapsed ? "-rotate-90" : "")}
+                />
+              </button>
+            ) : null}
+            {!collapsed ? (
+              <div className="flex flex-col gap-1">
+                {group.items.map((item) => navItem(item, onNavigate))}
+              </div>
+            ) : null}
           </div>
-        </div>
-      ))}
+        );
+      })}
     </nav>
   );
 
