@@ -4,7 +4,8 @@
 // coverage for features added since: workspace editing, the
 // purchase-order create/edit/receive workflow, the reserved/damaged/
 // expired inventory state model, sales orders, sales invoicing + credit
-// notes, and the granular roles/permissions model (SP-6).
+// notes, the granular roles/permissions model (SP-6), and the audit log
+// (SP-2).
 //
 // Exercises the live Supabase project over its REST/Auth API — no
 // @supabase/supabase-js needed, just Node's built-in fetch, so it runs
@@ -1473,6 +1474,170 @@ async function main() {
       "role_permissions grants sales_manager sales_orders.confirm but not purchase_orders.approve",
       smKeys.includes("sales_orders.confirm") && !smKeys.includes("purchase_orders.approve"),
       `body ${JSON.stringify(rolePerms.data)}`,
+    );
+  }
+
+  // --- L. Audit Log (SP-2) -------------------------------------------------
+  console.log("\nL. Audit log: PO status / stock adjustment / org settings triggers, isolation");
+  {
+    const supplier = await rest("POST", "suppliers", {
+      token: admin.token,
+      body: { org_id: orgId, name: `L Supplier ${RUN_ID}` },
+    });
+    const supplierId = supplier.data?.[0]?.id;
+    const warehouse = await rest("POST", "warehouses", {
+      token: admin.token,
+      body: { org_id: orgId, name: "Audit Test WH", code: `AUDIT-WH-${RUN_ID}` },
+    });
+    const warehouseId = warehouse.data?.[0]?.id;
+    const product = await rest("POST", "products", {
+      token: admin.token,
+      body: { org_id: orgId, sku: `AUDIT-SKU-${RUN_ID}`, name: "Audit test product" },
+    });
+    const productId = product.data?.[0]?.id;
+
+    // PO status transition is audited.
+    const po = await rest("POST", "purchase_orders", {
+      token: admin.token,
+      body: {
+        org_id: orgId,
+        supplier_id: supplierId,
+        warehouse_id: warehouseId,
+        po_number: `PO-AUDIT-${RUN_ID}`,
+      },
+    });
+    const poId = po.data?.[0]?.id;
+    await rest("PATCH", "purchase_orders", {
+      token: admin.token,
+      query: `?id=eq.${poId}`,
+      body: { status: "approved" },
+    });
+
+    const poAudit = await rest("GET", "audit_log", {
+      token: admin.token,
+      query: `?entity_type=eq.purchase_order&entity_id=eq.${poId}&select=action,before,after,actor_id`,
+    });
+    check(
+      "a PO status change is recorded in the audit log",
+      poAudit.ok &&
+        poAudit.data?.length === 1 &&
+        poAudit.data[0].action === "purchase_order.status_changed" &&
+        poAudit.data[0].before?.status === "draft" &&
+        poAudit.data[0].after?.status === "approved" &&
+        poAudit.data[0].actor_id === admin.id,
+      `body ${JSON.stringify(poAudit.data)}`,
+    );
+
+    // Stock adjustment is audited, with its reason...
+    const adjustment = await rest("POST", "stock_movements", {
+      token: admin.token,
+      body: {
+        org_id: orgId,
+        product_id: productId,
+        warehouse_id: warehouseId,
+        type: "adjustment",
+        quantity: 3,
+        notes: "cycle count correction",
+      },
+    });
+    const adjustmentId = adjustment.data?.[0]?.id;
+    const adjAudit = await rest("GET", "audit_log", {
+      token: admin.token,
+      query: `?entity_type=eq.stock_movement&entity_id=eq.${adjustmentId}&select=action,after`,
+    });
+    check(
+      "a stock adjustment (with reason) is recorded in the audit log",
+      adjAudit.ok &&
+        adjAudit.data?.length === 1 &&
+        adjAudit.data[0].action === "stock.adjusted" &&
+        adjAudit.data[0].after?.reason === "cycle count correction",
+      `body ${JSON.stringify(adjAudit.data)}`,
+    );
+
+    // ...but a routine inbound movement is not (it's not a human correction).
+    const inbound = await rest("POST", "stock_movements", {
+      token: admin.token,
+      body: {
+        org_id: orgId,
+        product_id: productId,
+        warehouse_id: warehouseId,
+        type: "inbound",
+        quantity: 10,
+      },
+    });
+    const inboundId = inbound.data?.[0]?.id;
+    const inboundAudit = await rest("GET", "audit_log", {
+      token: admin.token,
+      query: `?entity_id=eq.${inboundId}`,
+    });
+    check(
+      "a routine inbound movement is NOT recorded in the audit log",
+      inboundAudit.ok && inboundAudit.data?.length === 0,
+      `body ${JSON.stringify(inboundAudit.data)}`,
+    );
+
+    // Org settings change is audited.
+    await rest("PATCH", "organizations", {
+      token: admin.token,
+      query: `?id=eq.${orgId}`,
+      body: { timezone: "Asia/Dubai" },
+    });
+    const orgAudit = await rest("GET", "audit_log", {
+      token: admin.token,
+      query: `?entity_type=eq.organization&action=eq.organization.settings_changed&select=before,after&order=created_at.desc&limit=1`,
+    });
+    check(
+      "an organization settings change is recorded in the audit log",
+      orgAudit.ok &&
+        orgAudit.data?.length === 1 &&
+        orgAudit.data[0].after?.timezone === "Asia/Dubai",
+      `body ${JSON.stringify(orgAudit.data)}`,
+    );
+
+    // Cross-tenant isolation and no client write path at all.
+    const outsiderAuditRead = await rest("GET", "audit_log", {
+      token: outsider.token,
+      query: `?org_id=eq.${orgId}`,
+    });
+    check(
+      "a non-member cannot read another org's audit log",
+      outsiderAuditRead.ok &&
+        Array.isArray(outsiderAuditRead.data) &&
+        outsiderAuditRead.data.length === 0,
+      `body ${JSON.stringify(outsiderAuditRead.data)}`,
+    );
+
+    const memberAuditInsert = await rest("POST", "audit_log", {
+      token: admin.token,
+      body: { org_id: orgId, actor_id: admin.id, action: "fake", entity_type: "fake", after: {} },
+    });
+    check(
+      "even an admin cannot insert an audit_log row directly (no client write path)",
+      !memberAuditInsert.ok,
+      `expected failure, got status ${memberAuditInsert.status}`,
+    );
+
+    const memberAuditUpdate = await rest("PATCH", "audit_log", {
+      token: admin.token,
+      query: `?entity_id=eq.${poId}`,
+      body: { action: "tampered" },
+    });
+    const tampered = memberAuditUpdate.ok && memberAuditUpdate.data?.length > 0;
+    check(
+      "an existing audit_log row cannot be edited via the client API",
+      !tampered,
+      `status ${memberAuditUpdate.status}, body ${JSON.stringify(memberAuditUpdate.data)}`,
+    );
+
+    const memberAuditDelete = await rest("DELETE", "audit_log", {
+      token: admin.token,
+      query: `?entity_id=eq.${poId}`,
+    });
+    const deleted = memberAuditDelete.ok && memberAuditDelete.data?.length > 0;
+    check(
+      "an existing audit_log row cannot be deleted via the client API",
+      !deleted,
+      `status ${memberAuditDelete.status}, body ${JSON.stringify(memberAuditDelete.data)}`,
     );
   }
 

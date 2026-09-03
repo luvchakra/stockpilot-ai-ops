@@ -10,6 +10,7 @@ import {
   Check,
   ClipboardList,
   FileText,
+  History,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -77,6 +78,7 @@ const NAV_SECONDARY = [
   { to: "/alerts", label: "Alerts", icon: AlertTriangle },
   { to: "/gst-filing", label: "GST Filing", icon: Receipt },
   { to: "/team", label: "Team", icon: Shield },
+  { to: "/audit-log", label: "Audit Log", icon: History },
 ] as const;
 
 export function AppShell({
