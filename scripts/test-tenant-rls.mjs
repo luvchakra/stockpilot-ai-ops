@@ -1641,6 +1641,228 @@ async function main() {
     );
   }
 
+  // --- M. e-Way Bills (SP-7) ------------------------------------------------
+  console.log("\nM. e-Way Bills: generate/cancel permission gating, credential secrecy, isolation");
+  {
+    const salesManager = await makeUser("ewbsales");
+    const warehouseOp = await makeUser("ewbwhop");
+    const viewer = await makeUser("ewbviewer");
+
+    await rest("POST", "organization_members", {
+      token: owner.token,
+      body: { org_id: orgId, user_id: salesManager.id, role: "sales_manager" },
+    });
+    await rest("POST", "organization_members", {
+      token: owner.token,
+      body: { org_id: orgId, user_id: warehouseOp.id, role: "warehouse_operator" },
+    });
+    await rest("POST", "organization_members", {
+      token: owner.token,
+      body: { org_id: orgId, user_id: viewer.id, role: "viewer" },
+    });
+
+    const warehouse = await rest("POST", "warehouses", {
+      token: admin.token,
+      body: { org_id: orgId, name: "e-Way Bill Test WH", code: `EWB-WH-${RUN_ID}` },
+    });
+    const warehouseId = warehouse.data?.[0]?.id;
+    const customer = await rest("POST", "customers", {
+      token: admin.token,
+      body: { org_id: orgId, name: `M Customer ${RUN_ID}` },
+    });
+    const customerId = customer.data?.[0]?.id;
+
+    const soNumber = await rpc("next_sales_order_number", {
+      token: admin.token,
+      body: { _org_id: orgId },
+    });
+    const so = await rest("POST", "sales_orders", {
+      token: admin.token,
+      body: {
+        org_id: orgId,
+        customer_id: customerId,
+        warehouse_id: warehouseId,
+        so_number: soNumber.data,
+        subtotal: 60000,
+        total_amount: 70800,
+      },
+    });
+    const soId = so.data?.[0]?.id;
+
+    const ewbPayload = () => ({
+      org_id: orgId,
+      source_type: "sales_order",
+      source_id: soId,
+      ewb_number: `EWB${RUN_ID}`,
+      ewb_date: new Date().toISOString(),
+      valid_until: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      transport_mode: "road",
+      request_payload: {},
+      response_payload: {},
+    });
+
+    // A role without eway_bills.generate (viewer) cannot record a generated bill.
+    const viewerGenerate = await rest("POST", "eway_bills", {
+      token: viewer.token,
+      body: ewbPayload(),
+    });
+    check(
+      "viewer cannot record an e-Way Bill (lacks eway_bills.generate)",
+      !viewerGenerate.ok,
+      `status ${viewerGenerate.status}, body ${JSON.stringify(viewerGenerate.data)}`,
+    );
+
+    // sales_manager (has eway_bills.generate) can.
+    const smGenerate = await rest("POST", "eway_bills", {
+      token: salesManager.token,
+      body: ewbPayload(),
+    });
+    check(
+      "sales_manager can record a generated e-Way Bill",
+      smGenerate.ok,
+      `status ${smGenerate.status}, body ${JSON.stringify(smGenerate.data)}`,
+    );
+    const billId = smGenerate.data?.[0]?.id;
+
+    // Only one ACTIVE bill per source transaction at a time.
+    const duplicateGenerate = await rest("POST", "eway_bills", {
+      token: salesManager.token,
+      body: ewbPayload(),
+    });
+    check(
+      "a second active e-Way Bill for the same source transaction is rejected",
+      !duplicateGenerate.ok,
+      `status ${duplicateGenerate.status}, body ${JSON.stringify(duplicateGenerate.data)}`,
+    );
+
+    // A role without eway_bills.cancel (viewer) cannot cancel.
+    const viewerCancel = await rest("PATCH", "eway_bills", {
+      token: viewer.token,
+      query: `?id=eq.${billId}`,
+      body: { status: "cancelled", cancelled_at: new Date().toISOString() },
+    });
+    const viewerCancelled = viewerCancel.ok && viewerCancel.data?.length > 0;
+    check(
+      "viewer cannot cancel an e-Way Bill (lacks eway_bills.cancel)",
+      !viewerCancelled,
+      `status ${viewerCancel.status}, body ${JSON.stringify(viewerCancel.data)}`,
+    );
+
+    // warehouse_operator (has eway_bills.cancel) can.
+    const whopCancel = await rest("PATCH", "eway_bills", {
+      token: warehouseOp.token,
+      query: `?id=eq.${billId}`,
+      body: { status: "cancelled", cancelled_at: new Date().toISOString() },
+    });
+    check(
+      "warehouse_operator can cancel an e-Way Bill",
+      whopCancel.ok && whopCancel.data?.length > 0,
+      `status ${whopCancel.status}, body ${JSON.stringify(whopCancel.data)}`,
+    );
+
+    // Cancelling frees the source transaction up for a fresh generation.
+    const regenerate = await rest("POST", "eway_bills", {
+      token: salesManager.token,
+      body: ewbPayload(),
+    });
+    check(
+      "a new e-Way Bill can be generated after the prior one is cancelled",
+      regenerate.ok,
+      `status ${regenerate.status}, body ${JSON.stringify(regenerate.data)}`,
+    );
+
+    // No DELETE policy at all -- a generated bill is a permanent legal record.
+    const deleteAttempt = await rest("DELETE", "eway_bills", {
+      token: admin.token,
+      query: `?id=eq.${billId}`,
+    });
+    const wasDeleted = deleteAttempt.ok && deleteAttempt.data?.length > 0;
+    check(
+      "an e-Way Bill row cannot be deleted via the client API",
+      !wasDeleted,
+      `status ${deleteAttempt.status}, body ${JSON.stringify(deleteAttempt.data)}`,
+    );
+
+    // Cross-tenant isolation.
+    const outsiderRead = await rest("GET", "eway_bills", {
+      token: outsider.token,
+      query: `?org_id=eq.${orgId}`,
+    });
+    check(
+      "a non-member cannot read another org's e-Way Bills",
+      outsiderRead.ok && Array.isArray(outsiderRead.data) && outsiderRead.data.length === 0,
+      `body ${JSON.stringify(outsiderRead.data)}`,
+    );
+
+    // --- Credentials: no client SELECT path for anyone, writes gated by settings.manage ---
+    const credInsert = await rest("POST", "eway_bill_credentials", {
+      token: admin.token,
+      body: {
+        org_id: orgId,
+        gsp_provider: "TestGSP",
+        auth_url: "https://example.test/auth",
+        generate_url: "https://example.test/generate",
+        cancel_url: "https://example.test/cancel",
+        gsp_username: "test-user",
+        gsp_password: "super-secret",
+      },
+    });
+    check(
+      "admin (settings.manage) can save e-Way Bill credentials",
+      credInsert.ok,
+      `status ${credInsert.status}, body ${JSON.stringify(credInsert.data)}`,
+    );
+
+    const smCredUpdate = await rest("PATCH", "eway_bill_credentials", {
+      token: salesManager.token,
+      query: `?org_id=eq.${orgId}`,
+      body: { gsp_provider: "Hijacked" },
+    });
+    const smTampered = smCredUpdate.ok && smCredUpdate.data?.length > 0;
+    check(
+      "sales_manager (lacks settings.manage) cannot update e-Way Bill credentials",
+      !smTampered,
+      `status ${smCredUpdate.status}, body ${JSON.stringify(smCredUpdate.data)}`,
+    );
+
+    const adminCredRead = await rest("GET", "eway_bill_credentials", {
+      token: admin.token,
+      query: `?org_id=eq.${orgId}`,
+    });
+    check(
+      "even an org admin cannot SELECT e-Way Bill credentials directly (service_role only)",
+      adminCredRead.ok && Array.isArray(adminCredRead.data) && adminCredRead.data.length === 0,
+      `status ${adminCredRead.status}, body ${JSON.stringify(adminCredRead.data)}`,
+    );
+
+    const statusRpc = await rpc("eway_bill_credentials_status", {
+      token: viewer.token,
+      body: { _org: orgId },
+    });
+    const statusRow = statusRpc.data?.[0];
+    check(
+      "eway_bill_credentials_status() exposes only non-secret metadata to org members",
+      statusRpc.ok &&
+        statusRow?.gsp_provider === "TestGSP" &&
+        !("gsp_password" in (statusRow ?? {})) &&
+        !("gsp_username" in (statusRow ?? {})) &&
+        !("client_secret" in (statusRow ?? {})),
+      `body ${JSON.stringify(statusRpc.data)}`,
+    );
+
+    const outsiderStatusRpc = await rpc("eway_bill_credentials_status", {
+      token: outsider.token,
+      body: { _org: orgId },
+    });
+    check(
+      "a non-member gets no rows from eway_bill_credentials_status()",
+      outsiderStatusRpc.ok &&
+        Array.isArray(outsiderStatusRpc.data) &&
+        outsiderStatusRpc.data.length === 0,
+      `body ${JSON.stringify(outsiderStatusRpc.data)}`,
+    );
+  }
+
   console.log(`\n${passed} passed, ${failed} failed`);
   return failed;
 }
