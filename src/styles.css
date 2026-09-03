@@ -114,15 +114,13 @@
   --sidebar-border: oklch(0 0 0 / 8%);
   --sidebar-ring: oklch(0.52 0.13 178);
 
-  --gradient-hero: radial-gradient(
-      120% 90% at 70% 0%,
-      oklch(0.85 0.06 190 / 0.35) 0%,
-      transparent 60%
-    ),
+  --gradient-hero:
+    radial-gradient(120% 90% at 70% 0%, oklch(0.85 0.06 190 / 0.35) 0%, transparent 60%),
     radial-gradient(90% 70% at 0% 10%, oklch(0.85 0.05 255 / 0.35) 0%, transparent 55%);
   --gradient-signal: linear-gradient(135deg, oklch(0.52 0.13 178), oklch(0.58 0.13 120));
   --shadow-lift: 0 24px 60px -20px oklch(0.2 0.03 250 / 0.16);
-  --shadow-glow: 0 0 0 1px oklch(0.52 0.13 178 / 0.2), 0 20px 60px -25px oklch(0.52 0.13 178 / 0.35);
+  --shadow-glow:
+    0 0 0 1px oklch(0.52 0.13 178 / 0.2), 0 20px 60px -25px oklch(0.52 0.13 178 / 0.35);
 }
 
 .dark {
@@ -165,15 +163,13 @@
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.78 0.14 178);
 
-  --gradient-hero: radial-gradient(
-      120% 90% at 70% 0%,
-      oklch(0.35 0.09 190 / 0.5) 0%,
-      transparent 60%
-    ),
+  --gradient-hero:
+    radial-gradient(120% 90% at 70% 0%, oklch(0.35 0.09 190 / 0.5) 0%, transparent 60%),
     radial-gradient(90% 70% at 0% 10%, oklch(0.32 0.07 255 / 0.55) 0%, transparent 55%);
   --gradient-signal: linear-gradient(135deg, oklch(0.82 0.14 178), oklch(0.86 0.14 120));
   --shadow-lift: 0 24px 60px -20px oklch(0.1 0.03 250 / 0.85);
-  --shadow-glow: 0 0 0 1px oklch(0.78 0.14 178 / 0.25), 0 20px 60px -25px oklch(0.78 0.14 178 / 0.5);
+  --shadow-glow:
+    0 0 0 1px oklch(0.78 0.14 178 / 0.25), 0 20px 60px -25px oklch(0.78 0.14 178 / 0.5);
 }
 
 @layer base {
@@ -224,4 +220,24 @@
 
 @utility glow {
   box-shadow: var(--shadow-glow);
+}
+
+/* Printing an invoice: hide everything except the marked print area,
+   regardless of where Radix's dialog portal placed it in the DOM. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+  .print-area {
+    position: absolute;
+    inset: 0;
+    padding: 1rem;
+  }
+  .no-print {
+    display: none !important;
+  }
 }

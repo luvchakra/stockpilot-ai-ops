@@ -2,8 +2,9 @@
 // Integration test suite for the multi-tenant RLS hardening
 // (supabase/migrations/20260830130000_harden_tenant_rls.sql) plus RLS
 // coverage for features added since: workspace editing, the
-// purchase-order create/edit/receive workflow, and the reserved/damaged/
-// expired inventory state model.
+// purchase-order create/edit/receive workflow, the reserved/damaged/
+// expired inventory state model, sales orders, and sales invoicing +
+// credit notes.
 //
 // Exercises the live Supabase project over its REST/Auth API — no
 // @supabase/supabase-js needed, just Node's built-in fetch, so it runs
@@ -995,6 +996,175 @@ async function main() {
       Number(levelAfterCancel.data?.[0]?.reserved) === 0 &&
         Number(levelAfterCancel.data?.[0]?.quantity) === 5,
       `body ${JSON.stringify(levelAfterCancel.data)}`,
+    );
+  }
+
+  // --- J. Sales Invoices + Credit Notes (SP-5) ---------------------------
+  console.log("\nJ. Sales invoices + credit notes: generation rules, isolation");
+  {
+    await rest("PATCH", "products", {
+      token: admin.token,
+      query: `?id=eq.${productId}`,
+      body: { hsn_code: "9999" },
+    });
+
+    const draftSoNumber = await rpc("next_sales_order_number", {
+      token: admin.token,
+      body: { _org_id: orgId },
+    });
+    const draftSo = await rest("POST", "sales_orders", {
+      token: admin.token,
+      body: {
+        org_id: orgId,
+        customer_id: customerId,
+        warehouse_id: warehouseId,
+        so_number: draftSoNumber.data,
+        subtotal: 100,
+        total_amount: 118,
+      },
+    });
+    const draftSoId = draftSo.data?.[0]?.id;
+
+    const draftInvoiceAttempt = await rpc("generate_sales_invoice", {
+      token: admin.token,
+      body: { _so_id: draftSoId },
+    });
+    check(
+      "an invoice cannot be generated from a draft sales order",
+      !draftInvoiceAttempt.ok,
+      `expected failure, got status ${draftInvoiceAttempt.status}, body ${JSON.stringify(draftInvoiceAttempt.data)}`,
+    );
+
+    const viewerInvoiceAttempt = await rpc("generate_sales_invoice", {
+      token: viewer.token,
+      body: { _so_id: soId },
+    });
+    check(
+      "viewer cannot generate an invoice",
+      !viewerInvoiceAttempt.ok,
+      `status ${viewerInvoiceAttempt.status}`,
+    );
+
+    const genInvoice = await rpc("generate_sales_invoice", {
+      token: admin.token,
+      body: { _so_id: soId },
+    });
+    check(
+      "admin can generate an invoice from a shipped sales order",
+      genInvoice.ok,
+      `status ${genInvoice.status}, body ${JSON.stringify(genInvoice.data)}`,
+    );
+    const invoiceId = genInvoice.data;
+
+    const dupInvoice = await rpc("generate_sales_invoice", {
+      token: admin.token,
+      body: { _so_id: soId },
+    });
+    check(
+      "generating a second invoice for the same order is blocked",
+      !dupInvoice.ok,
+      `expected failure, got status ${dupInvoice.status}`,
+    );
+
+    const invoiceRow = await rest("GET", "sales_invoices", {
+      token: admin.token,
+      query: `?id=eq.${invoiceId}&select=invoice_number,subtotal,sales_order_id`,
+    });
+    check(
+      "the invoice is numbered per financial year and snapshots the order's totals",
+      invoiceRow.data?.[0]?.invoice_number?.startsWith("INV/") &&
+        Number(invoiceRow.data?.[0]?.subtotal) === 1500 &&
+        invoiceRow.data?.[0]?.sales_order_id === soId,
+      `body ${JSON.stringify(invoiceRow.data)}`,
+    );
+
+    const invoiceItems = await rest("GET", "sales_invoice_items", {
+      token: admin.token,
+      query: `?invoice_id=eq.${invoiceId}&select=product_id,hsn_code,quantity`,
+    });
+    check(
+      "invoice line items are copied from the sales order with the product's HSN code",
+      invoiceItems.data?.length === 1 &&
+        invoiceItems.data[0].product_id === productId &&
+        invoiceItems.data[0].hsn_code === "9999",
+      `body ${JSON.stringify(invoiceItems.data)}`,
+    );
+
+    const outsiderInvoiceRead = await rest("GET", "sales_invoices", {
+      token: outsider.token,
+      query: `?id=eq.${invoiceId}`,
+    });
+    check(
+      "a non-member cannot read another org's invoice",
+      outsiderInvoiceRead.ok &&
+        Array.isArray(outsiderInvoiceRead.data) &&
+        outsiderInvoiceRead.data.length === 0,
+      `body ${JSON.stringify(outsiderInvoiceRead.data)}`,
+    );
+
+    const viewerCreditAttempt = await rpc("create_credit_note", {
+      token: viewer.token,
+      body: { _invoice_id: invoiceId, _is_full: false, _subtotal: 100 },
+    });
+    check(
+      "viewer cannot record a credit note",
+      !viewerCreditAttempt.ok,
+      `status ${viewerCreditAttempt.status}`,
+    );
+
+    const overCredit = await rpc("create_credit_note", {
+      token: admin.token,
+      body: { _invoice_id: invoiceId, _is_full: false, _subtotal: 999999 },
+    });
+    check(
+      "a credit note cannot exceed the invoice's remaining taxable value",
+      !overCredit.ok,
+      `expected failure, got status ${overCredit.status}, body ${JSON.stringify(overCredit.data)}`,
+    );
+
+    const partialCredit = await rpc("create_credit_note", {
+      token: admin.token,
+      body: { _invoice_id: invoiceId, _is_full: false, _subtotal: 500, _reason: "Partial return" },
+    });
+    check(
+      "admin can record a partial credit note",
+      partialCredit.ok,
+      `status ${partialCredit.status}, body ${JSON.stringify(partialCredit.data)}`,
+    );
+
+    const fullCredit = await rpc("create_credit_note", {
+      token: admin.token,
+      body: { _invoice_id: invoiceId, _is_full: true },
+    });
+    check(
+      "admin can then record a full credit note for the remainder",
+      fullCredit.ok,
+      `status ${fullCredit.status}, body ${JSON.stringify(fullCredit.data)}`,
+    );
+
+    const creditNotesRows = await rest("GET", "credit_notes", {
+      token: admin.token,
+      query: `?sales_invoice_id=eq.${invoiceId}&select=subtotal,credit_note_number`,
+    });
+    const totalCredited = (creditNotesRows.data ?? []).reduce(
+      (s, cn) => s + Number(cn.subtotal),
+      0,
+    );
+    check(
+      "the two credit notes together account for the full invoice subtotal (1500)",
+      totalCredited === 1500 &&
+        (creditNotesRows.data ?? []).every((cn) => cn.credit_note_number?.startsWith("CN/")),
+      `body ${JSON.stringify(creditNotesRows.data)}`,
+    );
+
+    const noMoreCredit = await rpc("create_credit_note", {
+      token: admin.token,
+      body: { _invoice_id: invoiceId, _is_full: true },
+    });
+    check(
+      "a fully-credited invoice cannot be credited again",
+      !noMoreCredit.ok,
+      `expected failure, got status ${noMoreCredit.status}`,
     );
   }
 

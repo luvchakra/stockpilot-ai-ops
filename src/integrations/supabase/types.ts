@@ -118,6 +118,98 @@ export type Database = {
           },
         ]
       }
+      credit_note_counters: {
+        Row: {
+          financial_year: string
+          next_number: number
+          org_id: string
+        }
+        Insert: {
+          financial_year: string
+          next_number?: number
+          org_id: string
+        }
+        Update: {
+          financial_year?: string
+          next_number?: number
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_note_counters_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      credit_notes: {
+        Row: {
+          cgst_amount: number
+          created_at: string
+          created_by: string
+          credit_note_date: string
+          credit_note_number: string
+          id: string
+          igst_amount: number
+          is_full: boolean
+          org_id: string
+          reason: string | null
+          sales_invoice_id: string
+          sgst_amount: number
+          subtotal: number
+          total_amount: number
+        }
+        Insert: {
+          cgst_amount?: number
+          created_at?: string
+          created_by?: string
+          credit_note_date?: string
+          credit_note_number: string
+          id?: string
+          igst_amount?: number
+          is_full?: boolean
+          org_id: string
+          reason?: string | null
+          sales_invoice_id: string
+          sgst_amount?: number
+          subtotal?: number
+          total_amount?: number
+        }
+        Update: {
+          cgst_amount?: number
+          created_at?: string
+          created_by?: string
+          credit_note_date?: string
+          credit_note_number?: string
+          id?: string
+          igst_amount?: number
+          is_full?: boolean
+          org_id?: string
+          reason?: string | null
+          sales_invoice_id?: string
+          sgst_amount?: number
+          subtotal?: number
+          total_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_notes_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_notes_sales_invoice_id_fkey"
+            columns: ["sales_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "sales_invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customers: {
         Row: {
           billing_address: string | null
@@ -167,6 +259,69 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      debit_notes: {
+        Row: {
+          cgst_amount: number
+          created_at: string
+          created_by: string
+          debit_note_date: string
+          debit_note_number: string
+          id: string
+          igst_amount: number
+          org_id: string
+          reason: string | null
+          sales_invoice_id: string
+          sgst_amount: number
+          subtotal: number
+          total_amount: number
+        }
+        Insert: {
+          cgst_amount?: number
+          created_at?: string
+          created_by?: string
+          debit_note_date?: string
+          debit_note_number: string
+          id?: string
+          igst_amount?: number
+          org_id: string
+          reason?: string | null
+          sales_invoice_id: string
+          sgst_amount?: number
+          subtotal?: number
+          total_amount?: number
+        }
+        Update: {
+          cgst_amount?: number
+          created_at?: string
+          created_by?: string
+          debit_note_date?: string
+          debit_note_number?: string
+          id?: string
+          igst_amount?: number
+          org_id?: string
+          reason?: string | null
+          sales_invoice_id?: string
+          sgst_amount?: number
+          subtotal?: number
+          total_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "debit_notes_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "debit_notes_sales_invoice_id_fkey"
+            columns: ["sales_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "sales_invoices"
             referencedColumns: ["id"]
           },
         ]
@@ -372,6 +527,76 @@ export type Database = {
         }
         Relationships: []
       }
+      proforma_invoices: {
+        Row: {
+          cgst_amount: number
+          created_at: string
+          created_by: string
+          customer_id: string
+          id: string
+          igst_amount: number
+          org_id: string
+          proforma_date: string
+          proforma_number: string
+          sales_order_id: string | null
+          sgst_amount: number
+          subtotal: number
+          total_amount: number
+        }
+        Insert: {
+          cgst_amount?: number
+          created_at?: string
+          created_by?: string
+          customer_id: string
+          id?: string
+          igst_amount?: number
+          org_id: string
+          proforma_date?: string
+          proforma_number: string
+          sales_order_id?: string | null
+          sgst_amount?: number
+          subtotal?: number
+          total_amount?: number
+        }
+        Update: {
+          cgst_amount?: number
+          created_at?: string
+          created_by?: string
+          customer_id?: string
+          id?: string
+          igst_amount?: number
+          org_id?: string
+          proforma_date?: string
+          proforma_number?: string
+          sales_order_id?: string | null
+          sgst_amount?: number
+          subtotal?: number
+          total_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "proforma_invoices_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proforma_invoices_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proforma_invoices_sales_order_id_fkey"
+            columns: ["sales_order_id"]
+            isOneToOne: false
+            referencedRelation: "sales_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       purchase_order_items: {
         Row: {
           cgst_amount: number
@@ -526,6 +751,190 @@ export type Database = {
             columns: ["warehouse_id"]
             isOneToOne: false
             referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sales_invoice_counters: {
+        Row: {
+          financial_year: string
+          next_number: number
+          org_id: string
+        }
+        Insert: {
+          financial_year: string
+          next_number?: number
+          org_id: string
+        }
+        Update: {
+          financial_year?: string
+          next_number?: number
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_invoice_counters_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sales_invoice_items: {
+        Row: {
+          cgst_amount: number
+          created_at: string
+          hsn_code: string | null
+          id: string
+          igst_amount: number
+          invoice_id: string
+          org_id: string
+          product_id: string
+          quantity: number
+          sgst_amount: number
+          tax_rate: number
+          unit_price: number
+        }
+        Insert: {
+          cgst_amount?: number
+          created_at?: string
+          hsn_code?: string | null
+          id?: string
+          igst_amount?: number
+          invoice_id: string
+          org_id: string
+          product_id: string
+          quantity: number
+          sgst_amount?: number
+          tax_rate?: number
+          unit_price?: number
+        }
+        Update: {
+          cgst_amount?: number
+          created_at?: string
+          hsn_code?: string | null
+          id?: string
+          igst_amount?: number
+          invoice_id?: string
+          org_id?: string
+          product_id?: string
+          quantity?: number
+          sgst_amount?: number
+          tax_rate?: number
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_invoice_items_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "sales_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_invoice_items_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_invoice_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sales_invoices: {
+        Row: {
+          billing_address: string | null
+          cgst_amount: number
+          created_at: string
+          created_by: string
+          customer_gstin: string | null
+          customer_id: string
+          discount_amount: number
+          id: string
+          igst_amount: number
+          invoice_date: string
+          invoice_number: string
+          org_id: string
+          payment_status: Database["public"]["Enums"]["invoice_payment_status"]
+          sales_order_id: string
+          sgst_amount: number
+          shipping_address: string | null
+          shipping_amount: number
+          subtotal: number
+          total_amount: number
+          updated_at: string
+        }
+        Insert: {
+          billing_address?: string | null
+          cgst_amount?: number
+          created_at?: string
+          created_by?: string
+          customer_gstin?: string | null
+          customer_id: string
+          discount_amount?: number
+          id?: string
+          igst_amount?: number
+          invoice_date?: string
+          invoice_number: string
+          org_id: string
+          payment_status?: Database["public"]["Enums"]["invoice_payment_status"]
+          sales_order_id: string
+          sgst_amount?: number
+          shipping_address?: string | null
+          shipping_amount?: number
+          subtotal?: number
+          total_amount?: number
+          updated_at?: string
+        }
+        Update: {
+          billing_address?: string | null
+          cgst_amount?: number
+          created_at?: string
+          created_by?: string
+          customer_gstin?: string | null
+          customer_id?: string
+          discount_amount?: number
+          id?: string
+          igst_amount?: number
+          invoice_date?: string
+          invoice_number?: string
+          org_id?: string
+          payment_status?: Database["public"]["Enums"]["invoice_payment_status"]
+          sales_order_id?: string
+          sgst_amount?: number
+          shipping_address?: string | null
+          shipping_amount?: number
+          subtotal?: number
+          total_amount?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_invoices_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_invoices_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_invoices_sales_order_id_fkey"
+            columns: ["sales_order_id"]
+            isOneToOne: true
+            referencedRelation: "sales_orders"
             referencedColumns: ["id"]
           },
         ]
@@ -973,6 +1382,16 @@ export type Database = {
     Functions: {
       cancel_sales_order: { Args: { _so_id: string }; Returns: undefined }
       confirm_sales_order: { Args: { _so_id: string }; Returns: undefined }
+      create_credit_note: {
+        Args: {
+          _invoice_id: string
+          _is_full: boolean
+          _reason?: string | undefined
+          _subtotal?: number | undefined
+        }
+        Returns: string
+      }
+      generate_sales_invoice: { Args: { _so_id: string }; Returns: string }
       has_org_role: {
         Args: {
           _org: string
@@ -981,6 +1400,8 @@ export type Database = {
         Returns: boolean
       }
       is_org_member: { Args: { _org: string }; Returns: boolean }
+      next_credit_note_number: { Args: { _org_id: string }; Returns: string }
+      next_sales_invoice_number: { Args: { _org_id: string }; Returns: string }
       next_sales_order_number: { Args: { _org_id: string }; Returns: string }
       receive_purchase_order_item: {
         Args: { _item_id: string; _quantity: number }
@@ -991,6 +1412,7 @@ export type Database = {
     Enums: {
       alert_severity: "info" | "warning" | "critical"
       alert_status: "open" | "acknowledged" | "resolved" | "dismissed"
+      invoice_payment_status: "unpaid" | "partial" | "paid"
       movement_type:
         | "inbound"
         | "outbound"
@@ -1150,6 +1572,7 @@ export const Constants = {
     Enums: {
       alert_severity: ["info", "warning", "critical"],
       alert_status: ["open", "acknowledged", "resolved", "dismissed"],
+      invoice_payment_status: ["unpaid", "partial", "paid"],
       movement_type: [
         "inbound",
         "outbound",

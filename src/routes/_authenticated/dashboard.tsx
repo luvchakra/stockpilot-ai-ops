@@ -111,6 +111,7 @@ function Dashboard() {
         gstPurchases,
         openPoItems,
         salesToday,
+        gstSales,
       ] = await Promise.all([
         supabase
           .from("products")
@@ -150,6 +151,11 @@ function Dashboard() {
           .select("total_amount, status")
           .eq("org_id", orgId!)
           .eq("order_date", today),
+        supabase
+          .from("sales_invoices")
+          .select("id, cgst_amount, sgst_amount, igst_amount")
+          .eq("org_id", orgId!)
+          .gte("invoice_date", monthStart),
       ]);
 
       const productList = products.data ?? [];
@@ -221,6 +227,22 @@ function Dashboard() {
       const igstThisMonth = gstRows.reduce((s, po) => s + Number(po.igst_amount), 0);
       const gstPayableThisMonth = cgstThisMonth + sgstThisMonth + igstThisMonth;
 
+      const gstSalesRows = gstSales.data ?? [];
+      const cgstCollectedThisMonth = gstSalesRows.reduce(
+        (s, inv) => s + Number(inv.cgst_amount),
+        0,
+      );
+      const sgstCollectedThisMonth = gstSalesRows.reduce(
+        (s, inv) => s + Number(inv.sgst_amount),
+        0,
+      );
+      const igstCollectedThisMonth = gstSalesRows.reduce(
+        (s, inv) => s + Number(inv.igst_amount),
+        0,
+      );
+      const gstCollectedThisMonth =
+        cgstCollectedThisMonth + sgstCollectedThisMonth + igstCollectedThisMonth;
+
       const byDay = new Map(last14DayKeys().map((day) => [day, { increase: 0, decrease: 0 }]));
       for (const m of movements14d.data ?? []) {
         const day = m.created_at.slice(0, 10);
@@ -255,6 +277,10 @@ function Dashboard() {
         sgstThisMonth,
         igstThisMonth,
         gstPayableThisMonth,
+        cgstCollectedThisMonth,
+        sgstCollectedThisMonth,
+        igstCollectedThisMonth,
+        gstCollectedThisMonth,
         salesTodayTotal,
       };
     },
@@ -334,11 +360,11 @@ function Dashboard() {
                 ]}
               />
 
-              {data.gstPayableThisMonth > 0 ? (
+              {data.gstPayableThisMonth > 0 || data.gstCollectedThisMonth > 0 ? (
                 <div className="border-t border-border pt-4">
                   <div className="mb-2 flex items-center justify-between">
                     <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      GST paid this month
+                      GST this month
                     </p>
                     <Link
                       to="/gst-filing"
@@ -347,31 +373,86 @@ function Dashboard() {
                       View filing <ArrowRight className="size-3" />
                     </Link>
                   </div>
-                  <ProportionalBar
-                    segments={[
-                      {
-                        key: "cgst",
-                        label: "CGST",
-                        value: data.cgstThisMonth,
-                        colorClass: "bg-signal",
-                        displayValue: inr.format(data.cgstThisMonth),
-                      },
-                      {
-                        key: "sgst",
-                        label: "SGST",
-                        value: data.sgstThisMonth,
-                        colorClass: "bg-chart-3",
-                        displayValue: inr.format(data.sgstThisMonth),
-                      },
-                      {
-                        key: "igst",
-                        label: "IGST",
-                        value: data.igstThisMonth,
-                        colorClass: "bg-warn",
-                        displayValue: inr.format(data.igstThisMonth),
-                      },
-                    ]}
-                  />
+                  {/* Paid (ITC on purchases) and collected (output tax on sales) are kept
+                      as separate bars rather than netted into one figure -- they're
+                      different accounting concepts (a reclaimable credit vs. a
+                      liability), and merging them would make an ITC-heavy month look
+                      artificially "cheap". The net line below is just a quick
+                      cash-flow read, not a substitute for filing each side properly. */}
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {data.gstPayableThisMonth > 0 ? (
+                      <div>
+                        <p className="mb-1.5 text-xs text-muted-foreground">
+                          Paid on purchases (ITC)
+                        </p>
+                        <ProportionalBar
+                          segments={[
+                            {
+                              key: "cgst",
+                              label: "CGST",
+                              value: data.cgstThisMonth,
+                              colorClass: "bg-signal",
+                              displayValue: inr.format(data.cgstThisMonth),
+                            },
+                            {
+                              key: "sgst",
+                              label: "SGST",
+                              value: data.sgstThisMonth,
+                              colorClass: "bg-chart-3",
+                              displayValue: inr.format(data.sgstThisMonth),
+                            },
+                            {
+                              key: "igst",
+                              label: "IGST",
+                              value: data.igstThisMonth,
+                              colorClass: "bg-warn",
+                              displayValue: inr.format(data.igstThisMonth),
+                            },
+                          ]}
+                        />
+                      </div>
+                    ) : null}
+                    {data.gstCollectedThisMonth > 0 ? (
+                      <div>
+                        <p className="mb-1.5 text-xs text-muted-foreground">
+                          Collected on sales (output tax)
+                        </p>
+                        <ProportionalBar
+                          segments={[
+                            {
+                              key: "cgst",
+                              label: "CGST",
+                              value: data.cgstCollectedThisMonth,
+                              colorClass: "bg-signal",
+                              displayValue: inr.format(data.cgstCollectedThisMonth),
+                            },
+                            {
+                              key: "sgst",
+                              label: "SGST",
+                              value: data.sgstCollectedThisMonth,
+                              colorClass: "bg-chart-3",
+                              displayValue: inr.format(data.sgstCollectedThisMonth),
+                            },
+                            {
+                              key: "igst",
+                              label: "IGST",
+                              value: data.igstCollectedThisMonth,
+                              colorClass: "bg-warn",
+                              displayValue: inr.format(data.igstCollectedThisMonth),
+                            },
+                          ]}
+                        />
+                      </div>
+                    ) : null}
+                  </div>
+                  {data.gstPayableThisMonth > 0 && data.gstCollectedThisMonth > 0 ? (
+                    <div className="mt-3 flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2 text-xs">
+                      <span className="text-muted-foreground">Net position (collected − paid)</span>
+                      <span className="font-medium text-foreground">
+                        {inr.format(data.gstCollectedThisMonth - data.gstPayableThisMonth)}
+                      </span>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
             </>
@@ -584,6 +665,7 @@ function buildBrief(
     overduePOs: unknown[];
     alerts: unknown[];
     gstPayableThisMonth: number;
+    gstCollectedThisMonth: number;
   },
 ) {
   const parts: string[] = [
@@ -612,6 +694,11 @@ function buildBrief(
   }
   if (data.gstPayableThisMonth > 0) {
     parts.push(`GST paid on purchases this month so far: ${inr.format(data.gstPayableThisMonth)}.`);
+  }
+  if (data.gstCollectedThisMonth > 0) {
+    parts.push(
+      `GST collected on sales this month so far: ${inr.format(data.gstCollectedThisMonth)}.`,
+    );
   }
   return parts.join(" ");
 }
