@@ -10,6 +10,7 @@ import {
   Package,
   PackageCheck,
   Receipt,
+  Repeat,
   ShoppingCart,
   TrendingDown,
   TrendingUp,
@@ -115,6 +116,7 @@ function Dashboard() {
         openPoItems,
         salesToday,
         gstSales,
+        inTransitTransfers,
       ] = await Promise.all([
         // products_safe, not products — cost_price comes back null for a
         // role without inventory.view_cost, so stockValue below naturally
@@ -162,6 +164,13 @@ function Dashboard() {
           .select("id, cgst_amount, sgst_amount, igst_amount")
           .eq("org_id", orgId!)
           .gte("invoice_date", monthStart),
+        supabase
+          .from("stock_transfers")
+          .select(
+            "id, transfer_number, source:warehouses!stock_transfers_source_warehouse_id_fkey(name), destination:warehouses!stock_transfers_destination_warehouse_id_fkey(name)",
+          )
+          .eq("org_id", orgId!)
+          .eq("status", "in_transit"),
       ]);
 
       const productList = products.data ?? [];
@@ -276,6 +285,7 @@ function Dashboard() {
         lowStock,
         pendingPurchases: openPOs.length,
         overduePOs,
+        inTransitTransfers: inTransitTransfers.data ?? [],
         alerts: alerts.data ?? [],
         movementTrend,
         gstRiskCount,
@@ -504,6 +514,7 @@ function Dashboard() {
             {!data ? (
               <Skeleton className="h-24 w-full" />
             ) : data.overduePOs.length === 0 &&
+              data.inTransitTransfers.length === 0 &&
               data.alerts.length === 0 &&
               data.gstRiskCount === 0 &&
               org?.gstin ? (
@@ -552,6 +563,24 @@ function Dashboard() {
                       Overdue
                     </Badge>
                   </div>
+                ))}
+                {data.inTransitTransfers.slice(0, 3).map((t) => (
+                  <Link
+                    key={t.id}
+                    to="/stock-transfers"
+                    className="flex items-center justify-between gap-3 text-sm hover:underline"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{t.transfer_number}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {t.source?.name} → {t.destination?.name}
+                      </p>
+                    </div>
+                    <Badge variant="default" className="shrink-0">
+                      <Repeat className="size-3" />
+                      In transit
+                    </Badge>
+                  </Link>
                 ))}
                 {data.alerts.slice(0, 3).map((a) => (
                   <div key={a.id} className="flex items-center justify-between gap-3 text-sm">
