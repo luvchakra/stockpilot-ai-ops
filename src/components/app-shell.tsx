@@ -9,6 +9,7 @@ import {
   Boxes,
   Check,
   ClipboardList,
+  FileText,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -70,6 +71,7 @@ const NAV_PRIMARY = [
 
 const NAV_SECONDARY = [
   { to: "/sales-orders", label: "Sales Orders", icon: ShoppingCart },
+  { to: "/sales-invoices", label: "Sales Invoices", icon: FileText },
   { to: "/purchase-orders", label: "Purchase Orders", icon: ClipboardList },
   { to: "/alerts", label: "Alerts", icon: AlertTriangle },
   { to: "/gst-filing", label: "GST Filing", icon: Receipt },
