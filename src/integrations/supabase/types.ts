@@ -1608,6 +1608,144 @@ export type Database = {
           },
         ]
       }
+      stock_transfer_items: {
+        Row: {
+          created_at: string
+          damaged_quantity: number
+          id: string
+          org_id: string
+          product_id: string
+          quantity: number
+          received_quantity: number
+          stock_transfer_id: string
+        }
+        Insert: {
+          created_at?: string
+          damaged_quantity?: number
+          id?: string
+          org_id: string
+          product_id: string
+          quantity: number
+          received_quantity?: number
+          stock_transfer_id: string
+        }
+        Update: {
+          created_at?: string
+          damaged_quantity?: number
+          id?: string
+          org_id?: string
+          product_id?: string
+          quantity?: number
+          received_quantity?: number
+          stock_transfer_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_transfer_items_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_transfer_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_transfer_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_transfer_items_stock_transfer_id_fkey"
+            columns: ["stock_transfer_id"]
+            isOneToOne: false
+            referencedRelation: "stock_transfers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stock_transfers: {
+        Row: {
+          approved_by: string | null
+          cancelled_at: string | null
+          completed_at: string | null
+          created_at: string
+          destination_warehouse_id: string
+          id: string
+          notes: string | null
+          org_id: string
+          received_at: string | null
+          requested_by: string
+          shipped_at: string | null
+          source_warehouse_id: string
+          status: Database["public"]["Enums"]["stock_transfer_status"]
+          transfer_number: string
+          updated_at: string
+        }
+        Insert: {
+          approved_by?: string | null
+          cancelled_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          destination_warehouse_id: string
+          id?: string
+          notes?: string | null
+          org_id: string
+          received_at?: string | null
+          requested_by?: string
+          shipped_at?: string | null
+          source_warehouse_id: string
+          status?: Database["public"]["Enums"]["stock_transfer_status"]
+          transfer_number: string
+          updated_at?: string
+        }
+        Update: {
+          approved_by?: string | null
+          cancelled_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          destination_warehouse_id?: string
+          id?: string
+          notes?: string | null
+          org_id?: string
+          received_at?: string | null
+          requested_by?: string
+          shipped_at?: string | null
+          source_warehouse_id?: string
+          status?: Database["public"]["Enums"]["stock_transfer_status"]
+          transfer_number?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_transfers_destination_warehouse_id_fkey"
+            columns: ["destination_warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_transfers_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_transfers_source_warehouse_id_fkey"
+            columns: ["source_warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       suppliers: {
         Row: {
           address: string | null
@@ -1837,6 +1975,7 @@ export type Database = {
     }
     Functions: {
       cancel_sales_order: { Args: { _so_id: string }; Returns: undefined }
+      cancel_stock_transfer: { Args: { _transfer_id: string }; Returns: undefined }
       confirm_sales_order: { Args: { _so_id: string }; Returns: undefined }
       create_credit_note: {
         Args: {
@@ -1884,7 +2023,12 @@ export type Database = {
         Args: { _item_id: string; _quantity: number }
         Returns: undefined
       }
+      receive_stock_transfer_item: {
+        Args: { _damaged_quantity?: number; _item_id: string; _quantity: number }
+        Returns: undefined
+      }
       ship_sales_order: { Args: { _so_id: string }; Returns: undefined }
+      ship_stock_transfer: { Args: { _transfer_id: string }; Returns: undefined }
     }
     Enums: {
       alert_severity: "info" | "warning" | "critical"
@@ -1904,6 +2048,12 @@ export type Database = {
         | "reserve"
         | "unreserve"
         | "expired"
+        | "xfer_ship"
+        | "xfer_arrive"
+        | "xfer_receive"
+        | "xfer_receive_damaged"
+        | "xfer_cancel_ship"
+        | "xfer_cancel_arrive"
       org_role:
         | "owner"
         | "admin"
@@ -1933,6 +2083,14 @@ export type Database = {
         | "delivered"
         | "cancelled"
         | "returned"
+      stock_transfer_status:
+        | "draft"
+        | "requested"
+        | "approved"
+        | "in_transit"
+        | "received"
+        | "completed"
+        | "cancelled"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2077,6 +2235,12 @@ export const Constants = {
         "reserve",
         "unreserve",
         "expired",
+        "xfer_ship",
+        "xfer_arrive",
+        "xfer_receive",
+        "xfer_receive_damaged",
+        "xfer_cancel_ship",
+        "xfer_cancel_arrive",
       ],
       org_role: [
         "owner",
@@ -2109,6 +2273,15 @@ export const Constants = {
         "delivered",
         "cancelled",
         "returned",
+      ],
+      stock_transfer_status: [
+        "draft",
+        "requested",
+        "approved",
+        "in_transit",
+        "received",
+        "completed",
+        "cancelled",
       ],
     },
   },

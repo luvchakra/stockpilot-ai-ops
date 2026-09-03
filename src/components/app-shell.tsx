@@ -19,6 +19,7 @@ import {
   Package,
   Plus,
   Receipt,
+  Repeat,
   Search,
   Shield,
   ShoppingCart,
@@ -76,6 +77,7 @@ const NAV_GROUPS = [
     items: [
       { to: "/products", label: "Products", icon: Package },
       { to: "/inventory", label: "Inventory", icon: ArrowLeftRight },
+      { to: "/stock-transfers", label: "Stock Transfers", icon: Repeat },
       { to: "/warehouses", label: "Warehouses", icon: Warehouse },
     ],
   },

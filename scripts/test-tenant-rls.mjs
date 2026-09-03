@@ -2131,6 +2131,447 @@ async function main() {
     );
   }
 
+  // --- O. Stock Transfers (SP-9) --------------------------------------------
+  console.log(
+    "\nO. Stock transfers: workflow, on_hand/in_transit accounting, permission gating, isolation",
+  );
+  {
+    const inventoryManager = await makeUser("sttinv");
+    const warehouseOp = await makeUser("sttwhop");
+    const viewer = await makeUser("sttviewer");
+
+    await rest("POST", "organization_members", {
+      token: owner.token,
+      body: { org_id: orgId, user_id: inventoryManager.id, role: "inventory_manager" },
+    });
+    await rest("POST", "organization_members", {
+      token: owner.token,
+      body: { org_id: orgId, user_id: warehouseOp.id, role: "warehouse_operator" },
+    });
+    await rest("POST", "organization_members", {
+      token: owner.token,
+      body: { org_id: orgId, user_id: viewer.id, role: "viewer" },
+    });
+
+    const sourceWh = await rest("POST", "warehouses", {
+      token: admin.token,
+      body: { org_id: orgId, name: "Transfer Source WH", code: `STT-SRC-${RUN_ID}` },
+    });
+    const sourceWhId = sourceWh.data?.[0]?.id;
+    const destWh = await rest("POST", "warehouses", {
+      token: admin.token,
+      body: { org_id: orgId, name: "Transfer Dest WH", code: `STT-DST-${RUN_ID}` },
+    });
+    const destWhId = destWh.data?.[0]?.id;
+    const product = await rest("POST", "products", {
+      token: admin.token,
+      body: { org_id: orgId, sku: `STT-SKU-${RUN_ID}`, name: "Stock transfer test product" },
+    });
+    const productId = product.data?.[0]?.id;
+
+    // Only 5 on hand at the source -- used below to prove shipping is
+    // blocked before there's enough stock, then allowed after topping up.
+    await rest("POST", "stock_movements", {
+      token: admin.token,
+      body: {
+        org_id: orgId,
+        product_id: productId,
+        warehouse_id: sourceWhId,
+        type: "inbound",
+        quantity: 5,
+      },
+    });
+
+    const viewerCreate = await rest("POST", "stock_transfers", {
+      token: viewer.token,
+      body: {
+        org_id: orgId,
+        transfer_number: `ST-VIEWER-${RUN_ID}`,
+        source_warehouse_id: sourceWhId,
+        destination_warehouse_id: destWhId,
+      },
+    });
+    check(
+      "viewer cannot create a stock transfer (lacks stock_transfers.edit)",
+      !viewerCreate.ok,
+      `status ${viewerCreate.status}`,
+    );
+
+    const transfer = await rest("POST", "stock_transfers", {
+      token: inventoryManager.token,
+      body: {
+        org_id: orgId,
+        transfer_number: `ST-${RUN_ID}`,
+        source_warehouse_id: sourceWhId,
+        destination_warehouse_id: destWhId,
+      },
+    });
+    check(
+      "inventory_manager can create a draft stock transfer",
+      transfer.ok,
+      `status ${transfer.status}, body ${JSON.stringify(transfer.data)}`,
+    );
+    const transferId = transfer.data?.[0]?.id;
+
+    const item = await rest("POST", "stock_transfer_items", {
+      token: inventoryManager.token,
+      body: { org_id: orgId, stock_transfer_id: transferId, product_id: productId, quantity: 10 },
+    });
+    check("inventory_manager can add a line item", item.ok, `status ${item.status}`);
+    const itemId = item.data?.[0]?.id;
+
+    const whopRequest = await rest("PATCH", "stock_transfers", {
+      token: warehouseOp.token,
+      query: `?id=eq.${transferId}`,
+      body: { status: "requested" },
+    });
+    const whopRequested = whopRequest.ok && whopRequest.data?.length > 0;
+    check(
+      "warehouse_operator cannot submit a transfer for approval (lacks stock_transfers.edit)",
+      !whopRequested,
+      `status ${whopRequest.status}, body ${JSON.stringify(whopRequest.data)}`,
+    );
+
+    await rest("PATCH", "stock_transfers", {
+      token: inventoryManager.token,
+      query: `?id=eq.${transferId}`,
+      body: { status: "requested" },
+    });
+    await rest("PATCH", "stock_transfers", {
+      token: inventoryManager.token,
+      query: `?id=eq.${transferId}`,
+      body: { status: "approved" },
+    });
+
+    // Status is now 'approved', so this failure is genuinely about
+    // permission, not about the transfer being in the wrong state.
+    const whopApprove = await rpc("ship_stock_transfer", {
+      token: warehouseOp.token,
+      body: { _transfer_id: transferId },
+    });
+    check(
+      "warehouse_operator cannot ship an approved transfer (lacks stock_transfers.approve)",
+      !whopApprove.ok,
+      `status ${whopApprove.status}, body ${JSON.stringify(whopApprove.data)}`,
+    );
+
+    // Only 5 on hand, the line asks for 10 -- shipping must be blocked
+    // entirely (no partial stock movement).
+    const shortShip = await rpc("ship_stock_transfer", {
+      token: inventoryManager.token,
+      body: { _transfer_id: transferId },
+    });
+    check(
+      "shipping is blocked when the source warehouse doesn't have enough stock",
+      !shortShip.ok,
+      `expected failure, got status ${shortShip.status}, body ${JSON.stringify(shortShip.data)}`,
+    );
+
+    await rest("POST", "stock_movements", {
+      token: admin.token,
+      body: {
+        org_id: orgId,
+        product_id: productId,
+        warehouse_id: sourceWhId,
+        type: "inbound",
+        quantity: 10,
+      },
+    });
+
+    const ship = await rpc("ship_stock_transfer", {
+      token: inventoryManager.token,
+      body: { _transfer_id: transferId },
+    });
+    check(
+      "inventory_manager can ship once there's enough stock",
+      ship.ok,
+      `status ${ship.status}, body ${JSON.stringify(ship.data)}`,
+    );
+
+    const sourceLevel = await rest("GET", "stock_levels", {
+      token: admin.token,
+      query: `?product_id=eq.${productId}&warehouse_id=eq.${sourceWhId}&select=quantity`,
+    });
+    const destLevelAfterShip = await rest("GET", "stock_levels", {
+      token: admin.token,
+      query: `?product_id=eq.${productId}&warehouse_id=eq.${destWhId}&select=in_transit,quantity`,
+    });
+    check(
+      "shipping decrements on_hand at the source",
+      Number(sourceLevel.data?.[0]?.quantity) === 5,
+      `body ${JSON.stringify(sourceLevel.data)}`,
+    );
+    check(
+      "shipping increments in_transit at the destination without touching its on_hand",
+      Number(destLevelAfterShip.data?.[0]?.in_transit) === 10 &&
+        Number(destLevelAfterShip.data?.[0]?.quantity ?? 0) === 0,
+      `body ${JSON.stringify(destLevelAfterShip.data)}`,
+    );
+
+    const transferAfterShip = await rest("GET", "stock_transfers", {
+      token: admin.token,
+      query: `?id=eq.${transferId}&select=status`,
+    });
+    check(
+      "transfer status is in_transit after shipping",
+      transferAfterShip.data?.[0]?.status === "in_transit",
+      `body ${JSON.stringify(transferAfterShip.data)}`,
+    );
+
+    const viewerReceive = await rpc("receive_stock_transfer_item", {
+      token: viewer.token,
+      body: { _item_id: itemId, _quantity: 6, _damaged_quantity: 0 },
+    });
+    check(
+      "viewer cannot receive a stock transfer (lacks stock_transfers.receive)",
+      !viewerReceive.ok,
+      `status ${viewerReceive.status}`,
+    );
+
+    // Partial receipt: 6 good + 1 damaged out of 10 shipped.
+    const partialReceive = await rpc("receive_stock_transfer_item", {
+      token: warehouseOp.token,
+      body: { _item_id: itemId, _quantity: 6, _damaged_quantity: 1 },
+    });
+    check(
+      "warehouse_operator can receive a partial, split good/damaged quantity",
+      partialReceive.ok,
+      `status ${partialReceive.status}, body ${JSON.stringify(partialReceive.data)}`,
+    );
+
+    const destLevelAfterPartial = await rest("GET", "stock_levels", {
+      token: admin.token,
+      query: `?product_id=eq.${productId}&warehouse_id=eq.${destWhId}&select=quantity,damaged,in_transit`,
+    });
+    check(
+      "a partial receipt increments on_hand and damaged, decrementing in_transit by the same total",
+      Number(destLevelAfterPartial.data?.[0]?.quantity) === 6 &&
+        Number(destLevelAfterPartial.data?.[0]?.damaged) === 1 &&
+        Number(destLevelAfterPartial.data?.[0]?.in_transit) === 3,
+      `body ${JSON.stringify(destLevelAfterPartial.data)}`,
+    );
+
+    const transferAfterPartial = await rest("GET", "stock_transfers", {
+      token: admin.token,
+      query: `?id=eq.${transferId}&select=status`,
+    });
+    check(
+      "the transfer stays in_transit while a line is only partially accounted for",
+      transferAfterPartial.data?.[0]?.status === "in_transit",
+      `body ${JSON.stringify(transferAfterPartial.data)}`,
+    );
+
+    const finalReceive = await rpc("receive_stock_transfer_item", {
+      token: warehouseOp.token,
+      body: { _item_id: itemId, _quantity: 3, _damaged_quantity: 0 },
+    });
+    check(
+      "warehouse_operator can receive the remainder",
+      finalReceive.ok,
+      `status ${finalReceive.status}, body ${JSON.stringify(finalReceive.data)}`,
+    );
+
+    const transferAfterFull = await rest("GET", "stock_transfers", {
+      token: admin.token,
+      query: `?id=eq.${transferId}&select=status`,
+    });
+    check(
+      "the transfer moves to received once every line is fully accounted for",
+      transferAfterFull.data?.[0]?.status === "received",
+      `body ${JSON.stringify(transferAfterFull.data)}`,
+    );
+
+    const whopComplete = await rest("PATCH", "stock_transfers", {
+      token: viewer.token,
+      query: `?id=eq.${transferId}`,
+      body: { status: "completed", completed_at: new Date().toISOString() },
+    });
+    const viewerCompleted = whopComplete.ok && whopComplete.data?.length > 0;
+    check(
+      "viewer cannot complete a received transfer",
+      !viewerCompleted,
+      `status ${whopComplete.status}`,
+    );
+
+    const complete = await rest("PATCH", "stock_transfers", {
+      token: warehouseOp.token,
+      query: `?id=eq.${transferId}`,
+      body: { status: "completed", completed_at: new Date().toISOString() },
+    });
+    check(
+      "warehouse_operator (has stock_transfers.receive) can complete a received transfer",
+      complete.ok && complete.data?.length > 0,
+      `status ${complete.status}, body ${JSON.stringify(complete.data)}`,
+    );
+
+    const cancelDone = await rpc("cancel_stock_transfer", {
+      token: inventoryManager.token,
+      body: { _transfer_id: transferId },
+    });
+    check(
+      "a completed transfer can no longer be cancelled",
+      !cancelDone.ok,
+      `expected failure, got status ${cancelDone.status}`,
+    );
+
+    // --- Cancellation reverses only the still-outstanding in-transit qty ---
+    const transfer2 = await rest("POST", "stock_transfers", {
+      token: inventoryManager.token,
+      body: {
+        org_id: orgId,
+        transfer_number: `ST2-${RUN_ID}`,
+        source_warehouse_id: sourceWhId,
+        destination_warehouse_id: destWhId,
+      },
+    });
+    const transfer2Id = transfer2.data?.[0]?.id;
+    const item2 = await rest("POST", "stock_transfer_items", {
+      token: inventoryManager.token,
+      body: {
+        org_id: orgId,
+        stock_transfer_id: transfer2Id,
+        product_id: productId,
+        quantity: 4,
+      },
+    });
+    const item2Id = item2.data?.[0]?.id;
+    await rest("PATCH", "stock_transfers", {
+      token: inventoryManager.token,
+      query: `?id=eq.${transfer2Id}`,
+      body: { status: "requested" },
+    });
+    await rest("PATCH", "stock_transfers", {
+      token: inventoryManager.token,
+      query: `?id=eq.${transfer2Id}`,
+      body: { status: "approved" },
+    });
+    await rpc("ship_stock_transfer", {
+      token: inventoryManager.token,
+      body: { _transfer_id: transfer2Id },
+    });
+    // Receive half before cancelling -- the received half must NOT be
+    // reversed, only the outstanding 2 units still in transit.
+    await rpc("receive_stock_transfer_item", {
+      token: warehouseOp.token,
+      body: { _item_id: item2Id, _quantity: 2, _damaged_quantity: 0 },
+    });
+
+    const sourceBeforeCancel = await rest("GET", "stock_levels", {
+      token: admin.token,
+      query: `?product_id=eq.${productId}&warehouse_id=eq.${sourceWhId}&select=quantity`,
+    });
+
+    const cancel2 = await rpc("cancel_stock_transfer", {
+      token: inventoryManager.token,
+      body: { _transfer_id: transfer2Id },
+    });
+    check(
+      "inventory_manager can cancel an in-transit transfer",
+      cancel2.ok,
+      `status ${cancel2.status}, body ${JSON.stringify(cancel2.data)}`,
+    );
+
+    const sourceAfterCancel = await rest("GET", "stock_levels", {
+      token: admin.token,
+      query: `?product_id=eq.${productId}&warehouse_id=eq.${sourceWhId}&select=quantity`,
+    });
+    check(
+      "cancelling restores only the outstanding (unreceived) quantity to the source",
+      Number(sourceAfterCancel.data?.[0]?.quantity) ===
+        Number(sourceBeforeCancel.data?.[0]?.quantity) + 2,
+      `before ${JSON.stringify(sourceBeforeCancel.data)}, after ${JSON.stringify(sourceAfterCancel.data)}`,
+    );
+
+    const destAfterCancel = await rest("GET", "stock_levels", {
+      token: admin.token,
+      query: `?product_id=eq.${productId}&warehouse_id=eq.${destWhId}&select=in_transit`,
+    });
+    check(
+      "cancelling clears the outstanding in_transit at the destination",
+      Number(destAfterCancel.data?.[0]?.in_transit) === 0,
+      `body ${JSON.stringify(destAfterCancel.data)}`,
+    );
+
+    const transfer2AfterCancel = await rest("GET", "stock_transfers", {
+      token: admin.token,
+      query: `?id=eq.${transfer2Id}&select=status`,
+    });
+    check(
+      "a cancelled transfer's status is cancelled",
+      transfer2AfterCancel.data?.[0]?.status === "cancelled",
+      `body ${JSON.stringify(transfer2AfterCancel.data)}`,
+    );
+
+    // A draft transfer's cancellation is a pure status flip -- nothing to
+    // reverse since no stock has moved yet.
+    const draftTransfer = await rest("POST", "stock_transfers", {
+      token: inventoryManager.token,
+      body: {
+        org_id: orgId,
+        transfer_number: `ST3-${RUN_ID}`,
+        source_warehouse_id: sourceWhId,
+        destination_warehouse_id: destWhId,
+      },
+    });
+    const draftCancel = await rpc("cancel_stock_transfer", {
+      token: inventoryManager.token,
+      body: { _transfer_id: draftTransfer.data?.[0]?.id },
+    });
+    check(
+      "a draft transfer can be cancelled with no stock to reverse",
+      draftCancel.ok,
+      `status ${draftCancel.status}, body ${JSON.stringify(draftCancel.data)}`,
+    );
+
+    // No DELETE policy check: only stock_transfers.delete holders (not
+    // warehouse_operator) can delete a transfer at all.
+    const whopDelete = await rest("DELETE", "stock_transfers", {
+      token: warehouseOp.token,
+      query: `?id=eq.${draftTransfer.data?.[0]?.id}`,
+    });
+    const whopDeleted = whopDelete.ok && whopDelete.data?.length > 0;
+    check(
+      "warehouse_operator cannot delete a stock transfer (lacks stock_transfers.delete)",
+      !whopDeleted,
+      `status ${whopDelete.status}, body ${JSON.stringify(whopDelete.data)}`,
+    );
+
+    // Cross-tenant isolation.
+    const outsiderTransferRead = await rest("GET", "stock_transfers", {
+      token: outsider.token,
+      query: `?org_id=eq.${orgId}`,
+    });
+    check(
+      "a non-member cannot read another org's stock transfers",
+      outsiderTransferRead.ok &&
+        Array.isArray(outsiderTransferRead.data) &&
+        outsiderTransferRead.data.length === 0,
+      `body ${JSON.stringify(outsiderTransferRead.data)}`,
+    );
+
+    const outsiderItemRead = await rest("GET", "stock_transfer_items", {
+      token: outsider.token,
+      query: `?org_id=eq.${orgId}`,
+    });
+    check(
+      "a non-member cannot read another org's stock transfer items",
+      outsiderItemRead.ok &&
+        Array.isArray(outsiderItemRead.data) &&
+        outsiderItemRead.data.length === 0,
+      `body ${JSON.stringify(outsiderItemRead.data)}`,
+    );
+
+    const outsiderShip = await rpc("ship_stock_transfer", {
+      token: outsider.token,
+      body: { _transfer_id: transferId },
+    });
+    check(
+      "a non-member cannot ship another org's stock transfer",
+      !outsiderShip.ok,
+      `status ${outsiderShip.status}`,
+    );
+  }
+
   console.log(`\n${passed} passed, ${failed} failed`);
   return failed;
 }
