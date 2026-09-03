@@ -25,6 +25,7 @@ import { Route as AuthenticatedPurchaseOrdersRouteImport } from './routes/_authe
 import { Route as AuthenticatedSalesInvoicesRouteImport } from './routes/_authenticated/sales-invoices'
 import { Route as AuthenticatedSalesOrdersRouteImport } from './routes/_authenticated/sales-orders'
 import { Route as AuthenticatedSuppliersRouteImport } from './routes/_authenticated/suppliers'
+import { Route as AuthenticatedTeamRouteImport } from './routes/_authenticated/team'
 import { Route as AuthenticatedWarehousesRouteImport } from './routes/_authenticated/warehouses'
 import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
 
@@ -110,6 +111,11 @@ const AuthenticatedSuppliersRoute = AuthenticatedSuppliersRouteImport.update({
   path: '/suppliers',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedTeamRoute = AuthenticatedTeamRouteImport.update({
+  id: '/team',
+  path: '/team',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedWarehousesRoute = AuthenticatedWarehousesRouteImport.update({
   id: '/warehouses',
   path: '/warehouses',
@@ -137,6 +143,7 @@ export interface FileRoutesByFullPath {
   '/sales-invoices': typeof AuthenticatedSalesInvoicesRoute
   '/sales-orders': typeof AuthenticatedSalesOrdersRoute
   '/suppliers': typeof AuthenticatedSuppliersRoute
+  '/team': typeof AuthenticatedTeamRoute
   '/warehouses': typeof AuthenticatedWarehousesRoute
   '/blog/$slug': typeof BlogSlugRoute
 }
@@ -156,6 +163,7 @@ export interface FileRoutesByTo {
   '/sales-invoices': typeof AuthenticatedSalesInvoicesRoute
   '/sales-orders': typeof AuthenticatedSalesOrdersRoute
   '/suppliers': typeof AuthenticatedSuppliersRoute
+  '/team': typeof AuthenticatedTeamRoute
   '/warehouses': typeof AuthenticatedWarehousesRoute
   '/blog/$slug': typeof BlogSlugRoute
 }
@@ -177,6 +185,7 @@ export interface FileRoutesById {
   '/_authenticated/sales-invoices': typeof AuthenticatedSalesInvoicesRoute
   '/_authenticated/sales-orders': typeof AuthenticatedSalesOrdersRoute
   '/_authenticated/suppliers': typeof AuthenticatedSuppliersRoute
+  '/_authenticated/team': typeof AuthenticatedTeamRoute
   '/_authenticated/warehouses': typeof AuthenticatedWarehousesRoute
   '/blog/$slug': typeof BlogSlugRoute
 }
@@ -198,6 +207,7 @@ export interface FileRouteTypes {
     | '/sales-invoices'
     | '/sales-orders'
     | '/suppliers'
+    | '/team'
     | '/warehouses'
     | '/blog/$slug'
   fileRoutesByTo: FileRoutesByTo
@@ -217,6 +227,7 @@ export interface FileRouteTypes {
     | '/sales-invoices'
     | '/sales-orders'
     | '/suppliers'
+    | '/team'
     | '/warehouses'
     | '/blog/$slug'
   id:
@@ -237,6 +248,7 @@ export interface FileRouteTypes {
     | '/_authenticated/sales-invoices'
     | '/_authenticated/sales-orders'
     | '/_authenticated/suppliers'
+    | '/_authenticated/team'
     | '/_authenticated/warehouses'
     | '/blog/$slug'
   fileRoutesById: FileRoutesById
@@ -362,6 +374,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSuppliersRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/team': {
+      id: '/_authenticated/team'
+      path: '/team'
+      fullPath: '/team'
+      preLoaderRoute: typeof AuthenticatedTeamRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/warehouses': {
       id: '/_authenticated/warehouses'
       path: '/warehouses'
@@ -392,6 +411,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedSalesInvoicesRoute: typeof AuthenticatedSalesInvoicesRoute
   AuthenticatedSalesOrdersRoute: typeof AuthenticatedSalesOrdersRoute
   AuthenticatedSuppliersRoute: typeof AuthenticatedSuppliersRoute
+  AuthenticatedTeamRoute: typeof AuthenticatedTeamRoute
   AuthenticatedWarehousesRoute: typeof AuthenticatedWarehousesRoute
 }
 
@@ -408,6 +428,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSalesInvoicesRoute: AuthenticatedSalesInvoicesRoute,
   AuthenticatedSalesOrdersRoute: AuthenticatedSalesOrdersRoute,
   AuthenticatedSuppliersRoute: AuthenticatedSuppliersRoute,
+  AuthenticatedTeamRoute: AuthenticatedTeamRoute,
   AuthenticatedWarehousesRoute: AuthenticatedWarehousesRoute,
 }
 

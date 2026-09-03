@@ -19,6 +19,7 @@ import {
   Plus,
   Receipt,
   Search,
+  Shield,
   ShoppingCart,
   Sun,
   Truck,
@@ -75,6 +76,7 @@ const NAV_SECONDARY = [
   { to: "/purchase-orders", label: "Purchase Orders", icon: ClipboardList },
   { to: "/alerts", label: "Alerts", icon: AlertTriangle },
   { to: "/gst-filing", label: "GST Filing", icon: Receipt },
+  { to: "/team", label: "Team", icon: Shield },
 ] as const;
 
 export function AppShell({

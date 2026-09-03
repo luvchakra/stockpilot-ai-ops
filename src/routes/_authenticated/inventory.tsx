@@ -35,6 +35,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { num } from "@/lib/format";
+import { usePermissions } from "@/hooks/usePermissions";
 
 export const Route = createFileRoute("/_authenticated/inventory")({
   head: () => ({
@@ -81,6 +82,8 @@ const emptyForm = {
 
 function Inventory() {
   const { org } = useCurrentOrg();
+  const { can } = usePermissions();
+  const canEdit = can("inventory.edit");
   const orgId = org?.id;
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -203,137 +206,139 @@ function Inventory() {
       title="Inventory"
       description="Live stock levels across every warehouse."
       actions={
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button
-              size="sm"
-              onClick={() => {
-                setForm(emptyForm);
-                setAdjustingRow(null);
-              }}
-            >
-              <Plus className="size-4" />
-              Record movement
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>
-                {adjustingRow ? "Edit stock level" : "Record stock movement"}
-              </DialogTitle>
-            </DialogHeader>
-            {adjustingRow ? (
-              <p className="-mt-2 text-sm text-muted-foreground">
-                Stock on hand isn't edited directly — it's a running total of every movement, so
-                this posts a correcting movement for {adjustingRow.product} at{" "}
-                {adjustingRow.warehouse} instead.
-              </p>
-            ) : null}
-            <form
-              className="space-y-4"
-              onSubmit={(e) => {
-                e.preventDefault();
-                recordMovement.mutate();
-              }}
-            >
-              <div className="space-y-2">
-                <Label htmlFor="mv-product">Product</Label>
-                <Select
-                  value={form.product_id}
-                  onValueChange={(v) => setForm((f) => ({ ...f, product_id: v }))}
-                  required
-                >
-                  <SelectTrigger id="mv-product">
-                    <SelectValue placeholder="Select product" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(products.data ?? []).map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name} ({p.sku})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="mv-warehouse">Warehouse</Label>
-                <Select
-                  value={form.warehouse_id}
-                  onValueChange={(v) => setForm((f) => ({ ...f, warehouse_id: v }))}
-                  required
-                >
-                  <SelectTrigger id="mv-warehouse">
-                    <SelectValue placeholder="Select warehouse" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(warehouses.data ?? []).map((w) => (
-                      <SelectItem key={w.id} value={w.id}>
-                        {w.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
+        canEdit && (
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button
+                size="sm"
+                onClick={() => {
+                  setForm(emptyForm);
+                  setAdjustingRow(null);
+                }}
+              >
+                <Plus className="size-4" />
+                Record movement
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>
+                  {adjustingRow ? "Edit stock level" : "Record stock movement"}
+                </DialogTitle>
+              </DialogHeader>
+              {adjustingRow ? (
+                <p className="-mt-2 text-sm text-muted-foreground">
+                  Stock on hand isn't edited directly — it's a running total of every movement, so
+                  this posts a correcting movement for {adjustingRow.product} at{" "}
+                  {adjustingRow.warehouse} instead.
+                </p>
+              ) : null}
+              <form
+                className="space-y-4"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  recordMovement.mutate();
+                }}
+              >
                 <div className="space-y-2">
-                  <Label htmlFor="mv-type">Type</Label>
+                  <Label htmlFor="mv-product">Product</Label>
                   <Select
-                    value={form.type}
-                    onValueChange={(v) => setForm((f) => ({ ...f, type: v as MovementType }))}
+                    value={form.product_id}
+                    onValueChange={(v) => setForm((f) => ({ ...f, product_id: v }))}
+                    required
                   >
-                    <SelectTrigger id="mv-type">
-                      <SelectValue />
+                    <SelectTrigger id="mv-product">
+                      <SelectValue placeholder="Select product" />
                     </SelectTrigger>
                     <SelectContent>
-                      {MOVEMENT_TYPES.map((t) => (
-                        <SelectItem key={t.value} value={t.value}>
-                          {t.label}
+                      {(products.data ?? []).map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name} ({p.sku})
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="mv-qty">Quantity</Label>
-                  <Input
-                    id="mv-qty"
-                    type="number"
+                  <Label htmlFor="mv-warehouse">Warehouse</Label>
+                  <Select
+                    value={form.warehouse_id}
+                    onValueChange={(v) => setForm((f) => ({ ...f, warehouse_id: v }))}
                     required
-                    min={0.01}
-                    step="0.01"
-                    value={form.quantity}
-                    onChange={(e) => setForm((f) => ({ ...f, quantity: e.target.value }))}
+                  >
+                    <SelectTrigger id="mv-warehouse">
+                      <SelectValue placeholder="Select warehouse" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(warehouses.data ?? []).map((w) => (
+                        <SelectItem key={w.id} value={w.id}>
+                          {w.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="mv-type">Type</Label>
+                    <Select
+                      value={form.type}
+                      onValueChange={(v) => setForm((f) => ({ ...f, type: v as MovementType }))}
+                    >
+                      <SelectTrigger id="mv-type">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {MOVEMENT_TYPES.map((t) => (
+                          <SelectItem key={t.value} value={t.value}>
+                            {t.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="mv-qty">Quantity</Label>
+                    <Input
+                      id="mv-qty"
+                      type="number"
+                      required
+                      min={0.01}
+                      step="0.01"
+                      value={form.quantity}
+                      onChange={(e) => setForm((f) => ({ ...f, quantity: e.target.value }))}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="mv-ref">Reference</Label>
+                  <Input
+                    id="mv-ref"
+                    value={form.reference}
+                    onChange={(e) => setForm((f) => ({ ...f, reference: e.target.value }))}
+                    placeholder="PO-1001, order id, etc."
                   />
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="mv-ref">Reference</Label>
-                <Input
-                  id="mv-ref"
-                  value={form.reference}
-                  onChange={(e) => setForm((f) => ({ ...f, reference: e.target.value }))}
-                  placeholder="PO-1001, order id, etc."
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="mv-notes">Notes</Label>
-                <Input
-                  id="mv-notes"
-                  value={form.notes}
-                  onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-                />
-              </div>
-              <DialogFooter>
-                <Button
-                  type="submit"
-                  disabled={recordMovement.isPending || !form.product_id || !form.warehouse_id}
-                >
-                  {recordMovement.isPending ? "Recording…" : "Record movement"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+                <div className="space-y-2">
+                  <Label htmlFor="mv-notes">Notes</Label>
+                  <Input
+                    id="mv-notes"
+                    value={form.notes}
+                    onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                  />
+                </div>
+                <DialogFooter>
+                  <Button
+                    type="submit"
+                    disabled={recordMovement.isPending || !form.product_id || !form.warehouse_id}
+                  >
+                    {recordMovement.isPending ? "Recording…" : "Record movement"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        )
       }
     >
       {stockLevels.isLoading ? (
@@ -363,7 +368,7 @@ function Inventory() {
                   <TableHead className="text-right">Expired</TableHead>
                   <TableHead className="text-right">Incoming</TableHead>
                   <TableHead className="text-right">In transit</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  {canEdit && <TableHead className="text-right">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -406,12 +411,14 @@ function Inventory() {
                       <TableCell className="text-right">
                         {num.format(Number(row.in_transit))}
                       </TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="sm" onClick={() => startEdit(row)}>
-                          <Pencil className="size-4" />
-                          Edit
-                        </Button>
-                      </TableCell>
+                      {canEdit && (
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="sm" onClick={() => startEdit(row)}>
+                            <Pencil className="size-4" />
+                            Edit
+                          </Button>
+                        </TableCell>
+                      )}
                     </TableRow>
                   );
                 })}
@@ -440,15 +447,17 @@ function Inventory() {
                         {row.products?.sku} · {row.warehouses?.name}
                       </p>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => startEdit(row)}
-                      className="shrink-0"
-                    >
-                      <Pencil className="size-4" />
-                      Edit
-                    </Button>
+                    {canEdit && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => startEdit(row)}
+                        className="shrink-0"
+                      >
+                        <Pencil className="size-4" />
+                        Edit
+                      </Button>
+                    )}
                   </div>
                   <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
                     <div>

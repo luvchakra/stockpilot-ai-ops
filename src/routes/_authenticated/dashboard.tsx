@@ -30,6 +30,7 @@ import {
 import { formatDate, inr, num } from "@/lib/format";
 import { isValidGstin } from "@/lib/gst";
 import { cn } from "@/lib/utils";
+import { usePermissions } from "@/hooks/usePermissions";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
@@ -89,6 +90,8 @@ const movementsChartConfig = {
 
 function Dashboard() {
   const { org } = useCurrentOrg();
+  const { can } = usePermissions();
+  const canViewCost = can("inventory.view_cost");
   const orgId = org?.id;
 
   const summary = useQuery({
@@ -113,8 +116,11 @@ function Dashboard() {
         salesToday,
         gstSales,
       ] = await Promise.all([
+        // products_safe, not products — cost_price comes back null for a
+        // role without inventory.view_cost, so stockValue below naturally
+        // contributes zero from masked rows instead of leaking the real cost.
         supabase
-          .from("products")
+          .from("products_safe")
           .select("id, name, sku, cost_price, reorder_point")
           .eq("org_id", orgId!),
         supabase
@@ -190,7 +196,7 @@ function Dashboard() {
       );
 
       const stockValue = productList.reduce(
-        (sum, p) => sum + Number(p.cost_price) * (qtyByProduct.get(p.id) ?? 0),
+        (sum, p) => sum + Number(p.cost_price) * (qtyByProduct.get(p.id ?? "") ?? 0),
         0,
       );
 
@@ -199,7 +205,7 @@ function Dashboard() {
       let stockout = 0;
       const lowStock: typeof productList = [];
       for (const p of productList) {
-        const qty = qtyByProduct.get(p.id) ?? 0;
+        const qty = qtyByProduct.get(p.id ?? "") ?? 0;
         if (qty <= 0) {
           stockout++;
           lowStock.push(p);
@@ -294,11 +300,13 @@ function Dashboard() {
       description={org ? `${org.name} · live across all warehouses` : "Loading business…"}
     >
       <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-6">
-        <Kpi
-          label="Inventory value"
-          value={data ? inr.format(data.stockValue) : undefined}
-          icon={<IndianRupee className="size-4 text-signal" />}
-        />
+        {canViewCost && (
+          <Kpi
+            label="Inventory value"
+            value={data ? inr.format(data.stockValue) : undefined}
+            icon={<IndianRupee className="size-4 text-signal" />}
+          />
+        )}
         <Kpi
           label="Available stock"
           value={data ? num.format(data.available) : undefined}
