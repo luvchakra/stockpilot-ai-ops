@@ -27,6 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { usePermissions } from "@/hooks/usePermissions";
 
 export const Route = createFileRoute("/_authenticated/warehouses")({
   head: () => ({
@@ -52,6 +53,8 @@ const emptyForm = {
 
 function Warehouses() {
   const { org } = useCurrentOrg();
+  const { can } = usePermissions();
+  const canEdit = can("inventory.edit");
   const orgId = org?.id;
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -134,112 +137,114 @@ function Warehouses() {
       title="Warehouses"
       description="Warehouses, stores and distribution centers."
       actions={
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button
-              size="sm"
-              onClick={() => {
-                setForm(emptyForm);
-                setEditingId(null);
-              }}
-            >
-              <Plus className="size-4" />
-              New warehouse
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{editingId ? "Edit warehouse" : "New warehouse"}</DialogTitle>
-            </DialogHeader>
-            <form
-              className="space-y-4"
-              onSubmit={(e) => {
-                e.preventDefault();
-                saveWarehouse.mutate();
-              }}
-            >
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="wh-name">Name</Label>
-                  <Input
-                    id="wh-name"
-                    required
-                    value={form.name}
-                    onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                    placeholder="Mumbai Warehouse"
-                  />
+        canEdit && (
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button
+                size="sm"
+                onClick={() => {
+                  setForm(emptyForm);
+                  setEditingId(null);
+                }}
+              >
+                <Plus className="size-4" />
+                New warehouse
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{editingId ? "Edit warehouse" : "New warehouse"}</DialogTitle>
+              </DialogHeader>
+              <form
+                className="space-y-4"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  saveWarehouse.mutate();
+                }}
+              >
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="wh-name">Name</Label>
+                    <Input
+                      id="wh-name"
+                      required
+                      value={form.name}
+                      onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                      placeholder="Mumbai Warehouse"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="wh-code">Code</Label>
+                    <Input
+                      id="wh-code"
+                      required
+                      value={form.code}
+                      onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
+                      placeholder="WH-MUM"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="wh-city">City</Label>
+                    <Input
+                      id="wh-city"
+                      value={form.city}
+                      onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="wh-state">State</Label>
+                    <Input
+                      id="wh-state"
+                      value={form.state}
+                      onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="wh-postal">PIN code</Label>
+                    <Input
+                      id="wh-postal"
+                      value={form.postal_code}
+                      onChange={(e) => setForm((f) => ({ ...f, postal_code: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="wh-contact-name">Contact name</Label>
+                    <Input
+                      id="wh-contact-name"
+                      value={form.contact_name}
+                      onChange={(e) => setForm((f) => ({ ...f, contact_name: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="wh-contact-phone">Contact phone</Label>
+                    <Input
+                      id="wh-contact-phone"
+                      value={form.contact_phone}
+                      onChange={(e) => setForm((f) => ({ ...f, contact_phone: e.target.value }))}
+                    />
+                  </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="wh-code">Code</Label>
+                  <Label htmlFor="wh-address">Address</Label>
                   <Input
-                    id="wh-code"
-                    required
-                    value={form.code}
-                    onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
-                    placeholder="WH-MUM"
+                    id="wh-address"
+                    value={form.address}
+                    onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="wh-city">City</Label>
-                  <Input
-                    id="wh-city"
-                    value={form.city}
-                    onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="wh-state">State</Label>
-                  <Input
-                    id="wh-state"
-                    value={form.state}
-                    onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="wh-postal">PIN code</Label>
-                  <Input
-                    id="wh-postal"
-                    value={form.postal_code}
-                    onChange={(e) => setForm((f) => ({ ...f, postal_code: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="wh-contact-name">Contact name</Label>
-                  <Input
-                    id="wh-contact-name"
-                    value={form.contact_name}
-                    onChange={(e) => setForm((f) => ({ ...f, contact_name: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="wh-contact-phone">Contact phone</Label>
-                  <Input
-                    id="wh-contact-phone"
-                    value={form.contact_phone}
-                    onChange={(e) => setForm((f) => ({ ...f, contact_phone: e.target.value }))}
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="wh-address">Address</Label>
-                <Input
-                  id="wh-address"
-                  value={form.address}
-                  onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
-                />
-              </div>
-              <DialogFooter>
-                <Button type="submit" disabled={saveWarehouse.isPending}>
-                  {saveWarehouse.isPending
-                    ? "Saving…"
-                    : editingId
-                      ? "Save changes"
-                      : "Create warehouse"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+                <DialogFooter>
+                  <Button type="submit" disabled={saveWarehouse.isPending}>
+                    {saveWarehouse.isPending
+                      ? "Saving…"
+                      : editingId
+                        ? "Save changes"
+                        : "Create warehouse"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        )
       }
     >
       {warehouses.isLoading ? (
@@ -264,7 +269,7 @@ function Warehouses() {
                   <TableHead>State</TableHead>
                   <TableHead>Contact</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  {canEdit && <TableHead className="text-right">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -280,19 +285,23 @@ function Warehouses() {
                         {wh.is_active ? "Active" : "Inactive"}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" onClick={() => startEdit(wh)}>
-                        <Pencil className="size-4" />
-                        Edit
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => toggleActive.mutate({ id: wh.id, is_active: !wh.is_active })}
-                      >
-                        {wh.is_active ? "Deactivate" : "Activate"}
-                      </Button>
-                    </TableCell>
+                    {canEdit && (
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="sm" onClick={() => startEdit(wh)}>
+                          <Pencil className="size-4" />
+                          Edit
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() =>
+                            toggleActive.mutate({ id: wh.id, is_active: !wh.is_active })
+                          }
+                        >
+                          {wh.is_active ? "Deactivate" : "Activate"}
+                        </Button>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>
@@ -325,19 +334,21 @@ function Warehouses() {
                     <p className="truncate">{wh.contact_name ?? wh.contact_phone ?? "—"}</p>
                   </div>
                 </div>
-                <div className="flex justify-end gap-2 border-t border-border pt-3">
-                  <Button variant="ghost" size="sm" onClick={() => startEdit(wh)}>
-                    <Pencil className="size-4" />
-                    Edit
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => toggleActive.mutate({ id: wh.id, is_active: !wh.is_active })}
-                  >
-                    {wh.is_active ? "Deactivate" : "Activate"}
-                  </Button>
-                </div>
+                {canEdit && (
+                  <div className="flex justify-end gap-2 border-t border-border pt-3">
+                    <Button variant="ghost" size="sm" onClick={() => startEdit(wh)}>
+                      <Pencil className="size-4" />
+                      Edit
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => toggleActive.mutate({ id: wh.id, is_active: !wh.is_active })}
+                    >
+                      {wh.is_active ? "Deactivate" : "Activate"}
+                    </Button>
+                  </div>
+                )}
               </div>
             ))}
           </div>

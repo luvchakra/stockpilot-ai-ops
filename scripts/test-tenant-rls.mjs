@@ -3,17 +3,17 @@
 // (supabase/migrations/20260830130000_harden_tenant_rls.sql) plus RLS
 // coverage for features added since: workspace editing, the
 // purchase-order create/edit/receive workflow, the reserved/damaged/
-// expired inventory state model, sales orders, and sales invoicing +
-// credit notes.
+// expired inventory state model, sales orders, sales invoicing + credit
+// notes, and the granular roles/permissions model (SP-6).
 //
 // Exercises the live Supabase project over its REST/Auth API — no
 // @supabase/supabase-js needed, just Node's built-in fetch, so it runs
 // with zero `npm install`.
 //
-// WHAT THIS CREATES: 4 throwaway auth users (emails tagged
+// WHAT THIS CREATES: 7 throwaway auth users (emails tagged
 // rls-test-<run>-*@test.stockpilot.invalid), 1 organization, and a
-// handful of rows under it (products, a warehouse, a supplier, a
-// purchase order and its line item, a stock movement).
+// handful of rows under it (products, warehouses, suppliers, purchase
+// orders and their line items, sales orders, stock movements).
 //
 // SUPABASE_SERVICE_ROLE_KEY is effectively required, not just for
 // cleanup: if the project requires email confirmation before a session
@@ -997,11 +997,11 @@ async function main() {
         Number(levelAfterCancel.data?.[0]?.quantity) === 5,
       `body ${JSON.stringify(levelAfterCancel.data)}`,
     );
-  }
-
-  // --- J. Sales Invoices + Credit Notes (SP-5) ---------------------------
-  console.log("\nJ. Sales invoices + credit notes: generation rules, isolation");
-  {
+    // --- J. Sales Invoices + Credit Notes (SP-5) ---------------------------
+    // Deliberately not a separate block: it reuses I's productId/customerId/
+    // warehouseId/soId fixtures (a shipped sales order to invoice against),
+    // so it has to share I's lexical scope rather than opening its own.
+    console.log("\nJ. Sales invoices + credit notes: generation rules, isolation");
     await rest("PATCH", "products", {
       token: admin.token,
       query: `?id=eq.${productId}`,
@@ -1165,6 +1165,314 @@ async function main() {
       "a fully-credited invoice cannot be credited again",
       !noMoreCredit.ok,
       `expected failure, got status ${noMoreCredit.status}`,
+    );
+  }
+
+  // --- K. Granular Roles & Permissions (SP-6) -----------------------------
+  console.log(
+    "\nK. Granular roles: sales_manager, accountant, warehouse_operator, viewer write-block",
+  );
+  {
+    const salesManager = await makeUser("salesmgr");
+    const accountant = await makeUser("accountant");
+    const warehouseOp = await makeUser("whop");
+
+    await rest("POST", "organization_members", {
+      token: owner.token,
+      body: { org_id: orgId, user_id: salesManager.id, role: "sales_manager" },
+    });
+    await rest("POST", "organization_members", {
+      token: owner.token,
+      body: { org_id: orgId, user_id: accountant.id, role: "accountant" },
+    });
+    await rest("POST", "organization_members", {
+      token: owner.token,
+      body: { org_id: orgId, user_id: warehouseOp.id, role: "warehouse_operator" },
+    });
+
+    const supplier = await rest("POST", "suppliers", {
+      token: admin.token,
+      body: { org_id: orgId, name: `K Supplier ${RUN_ID}` },
+    });
+    const supplierId = supplier.data?.[0]?.id;
+
+    // Sales Manager can confirm a sales order...
+    const smSoNumber = await rpc("next_sales_order_number", {
+      token: salesManager.token,
+      body: { _org_id: orgId },
+    });
+    const smSo = await rest("POST", "sales_orders", {
+      token: salesManager.token,
+      body: {
+        org_id: orgId,
+        customer_id: customerId,
+        warehouse_id: warehouseId,
+        so_number: smSoNumber.data,
+        subtotal: 200,
+        total_amount: 236,
+      },
+    });
+    check(
+      "sales_manager can create a draft sales order",
+      smSo.ok,
+      `status ${smSo.status}, body ${JSON.stringify(smSo.data)}`,
+    );
+    const smSoId = smSo.data?.[0]?.id;
+    await rest("POST", "sales_order_items", {
+      token: salesManager.token,
+      body: {
+        org_id: orgId,
+        sales_order_id: smSoId,
+        product_id: productId,
+        quantity: 2,
+        unit_price: 100,
+        tax_rate: 18,
+      },
+    });
+    const smConfirm = await rpc("confirm_sales_order", {
+      token: salesManager.token,
+      body: { _so_id: smSoId },
+    });
+    check(
+      "sales_manager CAN confirm a sales order",
+      smConfirm.ok,
+      `status ${smConfirm.status}, body ${JSON.stringify(smConfirm.data)}`,
+    );
+
+    // ...but cannot approve a purchase order (acceptance criterion).
+    const draftPo = await rest("POST", "purchase_orders", {
+      token: admin.token,
+      body: {
+        org_id: orgId,
+        supplier_id: supplierId,
+        warehouse_id: warehouseId,
+        po_number: `PO-K-${RUN_ID}`,
+      },
+    });
+    const poId = draftPo.data?.[0]?.id;
+    const poItem = await rest("POST", "purchase_order_items", {
+      token: admin.token,
+      body: {
+        org_id: orgId,
+        purchase_order_id: poId,
+        product_id: productId,
+        quantity: 10,
+        unit_cost: 50,
+      },
+    });
+    const poItemId = poItem.data?.[0]?.id;
+
+    const smApprovePo = await rest("PATCH", "purchase_orders", {
+      token: salesManager.token,
+      query: `?id=eq.${poId}`,
+      body: { status: "approved" },
+    });
+    const poApprovedBySm = smApprovePo.ok && smApprovePo.data?.length > 0;
+    check(
+      "sales_manager CANNOT approve a purchase order",
+      !poApprovedBySm,
+      `status ${smApprovePo.status}, body ${JSON.stringify(smApprovePo.data)}`,
+    );
+
+    // Accountant can create an invoice (acceptance criterion) — smSoId is
+    // already confirmed, which is invoiceable.
+    const acctInvoice = await rpc("generate_sales_invoice", {
+      token: accountant.token,
+      body: { _so_id: smSoId },
+    });
+    check(
+      "accountant CAN create an invoice",
+      acctInvoice.ok,
+      `status ${acctInvoice.status}, body ${JSON.stringify(acctInvoice.data)}`,
+    );
+
+    // ...but cannot adjust inventory (acceptance criterion).
+    const acctInventoryWrite = await rest("PATCH", "products", {
+      token: accountant.token,
+      query: `?id=eq.${productId}`,
+      body: { selling_price: 9999 },
+    });
+    const inventoryChangedByAccountant =
+      acctInventoryWrite.ok && acctInventoryWrite.data?.length > 0;
+    check(
+      "accountant CANNOT adjust inventory",
+      !inventoryChangedByAccountant,
+      `status ${acctInventoryWrite.status}, body ${JSON.stringify(acctInventoryWrite.data)}`,
+    );
+
+    // Viewer cannot perform any write action anywhere (acceptance criterion) —
+    // spot-check beyond products (already covered in section B).
+    const viewerSoWrite = await rest("POST", "sales_orders", {
+      token: viewer.token,
+      body: {
+        org_id: orgId,
+        customer_id: customerId,
+        warehouse_id: warehouseId,
+        so_number: `SO-VIEWER-K-${RUN_ID}`,
+      },
+    });
+    check(
+      "viewer cannot create a sales order",
+      !viewerSoWrite.ok,
+      `status ${viewerSoWrite.status}`,
+    );
+
+    const viewerInvoiceWrite = await rpc("generate_sales_invoice", {
+      token: viewer.token,
+      body: { _so_id: smSoId },
+    });
+    check(
+      "viewer cannot generate an invoice",
+      !viewerInvoiceWrite.ok,
+      `status ${viewerInvoiceWrite.status}`,
+    );
+
+    const viewerPoWrite = await rest("POST", "purchase_orders", {
+      token: viewer.token,
+      body: {
+        org_id: orgId,
+        supplier_id: supplierId,
+        warehouse_id: warehouseId,
+        po_number: `PO-VIEWER-K-${RUN_ID}`,
+      },
+    });
+    check(
+      "viewer cannot create a purchase order",
+      !viewerPoWrite.ok,
+      `status ${viewerPoWrite.status}`,
+    );
+
+    // Warehouse Operator persona: receives stock and ships orders, but must
+    // not see cost prices, approve purchase orders, or confirm/cancel
+    // sales orders.
+    const woProductsSafe = await rest("GET", "products_safe", {
+      token: warehouseOp.token,
+      query: `?id=eq.${productId}&select=id,cost_price`,
+    });
+    check(
+      "warehouse_operator sees a masked (null) cost_price via products_safe",
+      woProductsSafe.ok && woProductsSafe.data?.[0]?.cost_price === null,
+      `body ${JSON.stringify(woProductsSafe.data)}`,
+    );
+
+    const adminProductsSafe = await rest("GET", "products_safe", {
+      token: admin.token,
+      query: `?id=eq.${productId}&select=id,cost_price`,
+    });
+    check(
+      "admin sees the real cost_price via products_safe",
+      adminProductsSafe.ok && adminProductsSafe.data?.[0]?.cost_price !== null,
+      `body ${JSON.stringify(adminProductsSafe.data)}`,
+    );
+
+    const po2 = await rest("POST", "purchase_orders", {
+      token: admin.token,
+      body: {
+        org_id: orgId,
+        supplier_id: supplierId,
+        warehouse_id: warehouseId,
+        po_number: `PO-K2-${RUN_ID}`,
+      },
+    });
+    const po2Id = po2.data?.[0]?.id;
+    const woApproveAttempt = await rest("PATCH", "purchase_orders", {
+      token: warehouseOp.token,
+      query: `?id=eq.${po2Id}`,
+      body: { status: "approved" },
+    });
+    const po2ApprovedByWo = woApproveAttempt.ok && woApproveAttempt.data?.length > 0;
+    check(
+      "warehouse_operator CANNOT approve a purchase order",
+      !po2ApprovedByWo,
+      `status ${woApproveAttempt.status}, body ${JSON.stringify(woApproveAttempt.data)}`,
+    );
+
+    await rest("PATCH", "purchase_orders", {
+      token: admin.token,
+      query: `?id=eq.${poId}`,
+      body: { status: "approved" },
+    });
+    await rest("PATCH", "purchase_orders", {
+      token: admin.token,
+      query: `?id=eq.${poId}`,
+      body: { status: "sent" },
+    });
+    const woReceive = await rpc("receive_purchase_order_item", {
+      token: warehouseOp.token,
+      body: { _item_id: poItemId, _quantity: 4 },
+    });
+    check(
+      "warehouse_operator CAN receive against a purchase order",
+      woReceive.ok,
+      `status ${woReceive.status}, body ${JSON.stringify(woReceive.data)}`,
+    );
+
+    const woShip = await rpc("ship_sales_order", {
+      token: warehouseOp.token,
+      body: { _so_id: smSoId },
+    });
+    check(
+      "warehouse_operator CAN ship a confirmed sales order",
+      woShip.ok,
+      `status ${woShip.status}, body ${JSON.stringify(woShip.data)}`,
+    );
+
+    const soForWo = await rest("POST", "sales_orders", {
+      token: admin.token,
+      body: {
+        org_id: orgId,
+        customer_id: customerId,
+        warehouse_id: warehouseId,
+        so_number: `SO-WO-${RUN_ID}`,
+        subtotal: 100,
+        total_amount: 118,
+      },
+    });
+    const soForWoId = soForWo.data?.[0]?.id;
+    await rest("POST", "sales_order_items", {
+      token: admin.token,
+      body: {
+        org_id: orgId,
+        sales_order_id: soForWoId,
+        product_id: productId,
+        quantity: 1,
+        unit_price: 100,
+        tax_rate: 18,
+      },
+    });
+
+    const woConfirmAttempt = await rpc("confirm_sales_order", {
+      token: warehouseOp.token,
+      body: { _so_id: soForWoId },
+    });
+    check(
+      "warehouse_operator CANNOT confirm a sales order",
+      !woConfirmAttempt.ok,
+      `status ${woConfirmAttempt.status}`,
+    );
+
+    const woCancelAttempt = await rpc("cancel_sales_order", {
+      token: warehouseOp.token,
+      body: { _so_id: soForWoId },
+    });
+    check(
+      "warehouse_operator CANNOT cancel a sales order",
+      !woCancelAttempt.ok,
+      `status ${woCancelAttempt.status}`,
+    );
+
+    // The Team page's data model: role_permissions is readable by any
+    // authenticated user (it's not org-scoped) and correctly separates
+    // sales_manager's confirm permission from purchase_orders.approve.
+    const rolePerms = await rest("GET", "role_permissions", {
+      token: viewer.token,
+      query: `?role=eq.sales_manager&select=permission_key`,
+    });
+    const smKeys = (rolePerms.data ?? []).map((r) => r.permission_key);
+    check(
+      "role_permissions grants sales_manager sales_orders.confirm but not purchase_orders.approve",
+      smKeys.includes("sales_orders.confirm") && !smKeys.includes("purchase_orders.approve"),
+      `body ${JSON.stringify(rolePerms.data)}`,
     );
   }
 

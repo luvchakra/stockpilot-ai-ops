@@ -37,6 +37,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { inr, formatDate } from "@/lib/format";
+import { usePermissions } from "@/hooks/usePermissions";
 
 export const Route = createFileRoute("/_authenticated/sales-invoices")({
   head: () => ({
@@ -89,6 +90,10 @@ type EligibleSoOption = {
 
 function SalesInvoices() {
   const { org } = useCurrentOrg();
+  const { can } = usePermissions();
+  const canCreate = can("invoices.create");
+  const canEdit = can("invoices.edit");
+  const canCancel = can("invoices.cancel");
   const orgId = org?.id;
   const queryClient = useQueryClient();
 
@@ -220,8 +225,8 @@ function SalesInvoices() {
       const { error } = await supabase.rpc("create_credit_note", {
         _invoice_id: detailId,
         _is_full: creditKind === "full",
-        _subtotal: creditKind === "partial" ? Number(creditSubtotal) : undefined,
-        _reason: creditReason || undefined,
+        ...(creditKind === "partial" ? { _subtotal: Number(creditSubtotal) } : {}),
+        ...(creditReason ? { _reason: creditReason } : {}),
       });
       if (error) throw error;
     },
@@ -242,52 +247,54 @@ function SalesInvoices() {
       title="Sales Invoices"
       description="Generate GST-compliant invoices from sales orders and manage credit notes."
       actions={
-        <Dialog open={generateOpen} onOpenChange={setGenerateOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm" onClick={() => setSelectedSoId("")}>
-              <Plus className="size-4" />
-              New invoice
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Generate invoice</DialogTitle>
-            </DialogHeader>
-            <form
-              className="space-y-4"
-              onSubmit={(e) => {
-                e.preventDefault();
-                generateInvoice.mutate();
-              }}
-            >
-              <div className="space-y-2">
-                <Label htmlFor="inv-so">Sales order</Label>
-                <Select value={selectedSoId} onValueChange={setSelectedSoId}>
-                  <SelectTrigger id="inv-so">
-                    <SelectValue placeholder="Select a confirmed or shipped order" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {eligibleSos.map((so: EligibleSoOption) => (
-                      <SelectItem key={so.id} value={so.id}>
-                        {so.so_number} — {so.customers?.name} ({so.status})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {eligibleSos.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">
-                    No orders are eligible yet — confirm a sales order first.
-                  </p>
-                ) : null}
-              </div>
-              <DialogFooter>
-                <Button type="submit" disabled={generateInvoice.isPending || !selectedSoId}>
-                  {generateInvoice.isPending ? "Generating…" : "Generate invoice"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+        canCreate && (
+          <Dialog open={generateOpen} onOpenChange={setGenerateOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" onClick={() => setSelectedSoId("")}>
+                <Plus className="size-4" />
+                New invoice
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Generate invoice</DialogTitle>
+              </DialogHeader>
+              <form
+                className="space-y-4"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  generateInvoice.mutate();
+                }}
+              >
+                <div className="space-y-2">
+                  <Label htmlFor="inv-so">Sales order</Label>
+                  <Select value={selectedSoId} onValueChange={setSelectedSoId}>
+                    <SelectTrigger id="inv-so">
+                      <SelectValue placeholder="Select a confirmed or shipped order" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {eligibleSos.map((so: EligibleSoOption) => (
+                        <SelectItem key={so.id} value={so.id}>
+                          {so.so_number} — {so.customers?.name} ({so.status})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {eligibleSos.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      No orders are eligible yet — confirm a sales order first.
+                    </p>
+                  ) : null}
+                </div>
+                <DialogFooter>
+                  <Button type="submit" disabled={generateInvoice.isPending || !selectedSoId}>
+                    {generateInvoice.isPending ? "Generating…" : "Generate invoice"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        )
       }
     >
       {invoices.isLoading ? (
@@ -567,30 +574,36 @@ function SalesInvoices() {
               </div>
 
               <div className="no-print flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
-                <Select
-                  value={selectedInvoice.payment_status}
-                  onValueChange={(v) =>
-                    updatePaymentStatus.mutate({
-                      id: selectedInvoice.id,
-                      payment_status: v as PaymentStatus,
-                    })
-                  }
-                >
-                  <SelectTrigger className="w-40">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="unpaid">Unpaid</SelectItem>
-                    <SelectItem value="partial">Partially paid</SelectItem>
-                    <SelectItem value="paid">Paid</SelectItem>
-                  </SelectContent>
-                </Select>
+                {canEdit ? (
+                  <Select
+                    value={selectedInvoice.payment_status}
+                    onValueChange={(v) =>
+                      updatePaymentStatus.mutate({
+                        id: selectedInvoice.id,
+                        payment_status: v as PaymentStatus,
+                      })
+                    }
+                  >
+                    <SelectTrigger className="w-40">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="unpaid">Unpaid</SelectItem>
+                      <SelectItem value="partial">Partially paid</SelectItem>
+                      <SelectItem value="paid">Paid</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Badge variant={PAYMENT_STATUS_VARIANT[selectedInvoice.payment_status]}>
+                    {selectedInvoice.payment_status}
+                  </Badge>
+                )}
                 <div className="flex flex-wrap gap-2">
                   <Button variant="outline" onClick={() => window.print()}>
                     <Printer className="size-4" />
                     Print
                   </Button>
-                  {remainingSubtotal > 0 ? (
+                  {remainingSubtotal > 0 && canCancel ? (
                     <Dialog open={creditNoteOpen} onOpenChange={setCreditNoteOpen}>
                       <DialogTrigger asChild>
                         <Button variant="outline">Record credit note</Button>

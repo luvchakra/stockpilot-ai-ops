@@ -38,6 +38,7 @@ import {
 import { inr, formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { GST_RATE_SLABS, aggregateGst, computeLineGst, resolveStateCode } from "@/lib/gst";
+import { usePermissions } from "@/hooks/usePermissions";
 
 export const Route = createFileRoute("/_authenticated/purchase-orders")({
   head: () => ({
@@ -165,6 +166,10 @@ function StageStepper({ status }: { status: PoStatus }) {
 
 function PurchaseOrders() {
   const { org } = useCurrentOrg();
+  const { can } = usePermissions();
+  const canEdit = can("purchase_orders.edit");
+  const canApprove = can("purchase_orders.approve");
+  const canReceivePermission = can("purchase_orders.receive");
   const orgId = org?.id;
   const queryClient = useQueryClient();
 
@@ -230,12 +235,17 @@ function PurchaseOrders() {
     },
   });
 
+  // products_safe, not products directly, so a role without
+  // inventory.view_cost never receives real cost_price over the wire, even
+  // though only canEdit roles ever open this form (all of them also hold
+  // inventory.view_cost, so nothing here actually gets masked today — this
+  // is defense in depth for whenever that stops being true).
   const products = useQuery({
-    queryKey: ["products", orgId, "active", "gst"],
-    enabled: !!orgId,
+    queryKey: ["products_safe", orgId, "active", "gst"],
+    enabled: !!orgId && canEdit,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("products")
+        .from("products_safe")
         .select("id, name, sku, cost_price, tax_rate")
         .eq("org_id", orgId!)
         .eq("status", "active")
@@ -423,268 +433,284 @@ function PurchaseOrders() {
     onError: (err) => toast.error(err instanceof Error ? err.message : "Could not receive stock"),
   });
 
+  // draft->approved and approved->sent are the approval step; received->closed
+  // is the receiving side's own wrap-up, so either permission covers it.
+  const canPrimaryAction = (status: PoStatus) => {
+    if (status === "draft" || status === "approved") return canApprove;
+    if (status === "received") return canApprove || canReceivePermission;
+    return false;
+  };
+
   return (
     <AppShell
       title="Purchase Orders"
       description="Create, approve and receive purchase orders."
       actions={
-        <Dialog open={formOpen} onOpenChange={setFormOpen}>
-          <DialogTrigger asChild>
-            <Button
-              size="sm"
-              onClick={() => {
-                resetCreateForm();
-                setEditingId(null);
-              }}
-            >
-              <Plus className="size-4" />
-              New purchase order
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>{editingId ? "Edit purchase order" : "New purchase order"}</DialogTitle>
-            </DialogHeader>
-            <form
-              className="space-y-4"
-              onSubmit={(e) => {
-                e.preventDefault();
-                savePo.mutate();
-              }}
-            >
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="po-supplier">Supplier</Label>
-                  <Select value={supplierId} onValueChange={setSupplierId}>
-                    <SelectTrigger id="po-supplier">
-                      <SelectValue placeholder="Select supplier" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(suppliers.data ?? []).map((s) => (
-                        <SelectItem key={s.id} value={s.id}>
-                          {s.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="po-warehouse">Receiving warehouse</Label>
-                  <Select value={warehouseId} onValueChange={setWarehouseId}>
-                    <SelectTrigger id="po-warehouse">
-                      <SelectValue placeholder="Select warehouse" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(warehouses.data ?? []).map((w) => (
-                        <SelectItem key={w.id} value={w.id}>
-                          {w.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="po-delivery">Expected delivery</Label>
-                  <Input
-                    id="po-delivery"
-                    type="date"
-                    value={expectedDelivery}
-                    onChange={(e) => setExpectedDelivery(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="po-notes">Notes</Label>
-                  <Input id="po-notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>Line items</Label>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setLines((ls) => [...ls, emptyLine()])}
-                  >
-                    <Plus className="size-4" />
-                    Add line
-                  </Button>
-                </div>
-                <div className="space-y-2">
-                  {lines.map((line, idx) => (
-                    <div key={idx} className="flex flex-wrap items-end gap-2">
-                      <div className="w-full space-y-1 sm:min-w-0 sm:flex-1">
-                        <Label className="text-xs text-muted-foreground">Product</Label>
-                        <Select
-                          value={line.product_id}
-                          onValueChange={(v) => {
-                            const product = products.data?.find((p) => p.id === v);
-                            setLines((ls) =>
-                              ls.map((l, i) =>
-                                i === idx
-                                  ? {
-                                      ...l,
-                                      product_id: v,
-                                      unit_cost: product ? String(product.cost_price) : l.unit_cost,
-                                      tax_rate: product ? String(product.tax_rate) : l.tax_rate,
-                                    }
-                                  : l,
-                              ),
-                            );
-                          }}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select product" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {(products.data ?? []).map((p) => (
-                              <SelectItem key={p.id} value={p.id}>
-                                {p.name} ({p.sku})
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="w-[4.5rem] space-y-1 sm:w-24">
-                        <Label className="text-xs text-muted-foreground">Qty</Label>
-                        <Input
-                          type="number"
-                          min={0.01}
-                          step="0.01"
-                          value={line.quantity}
-                          onChange={(e) =>
-                            setLines((ls) =>
-                              ls.map((l, i) =>
-                                i === idx ? { ...l, quantity: e.target.value } : l,
-                              ),
-                            )
-                          }
-                        />
-                      </div>
-                      <div className="w-20 space-y-1 sm:w-28">
-                        <Label className="text-xs text-muted-foreground">Unit cost</Label>
-                        <Input
-                          type="number"
-                          min={0}
-                          step="0.01"
-                          value={line.unit_cost}
-                          onChange={(e) =>
-                            setLines((ls) =>
-                              ls.map((l, i) =>
-                                i === idx ? { ...l, unit_cost: e.target.value } : l,
-                              ),
-                            )
-                          }
-                        />
-                      </div>
-                      <div className="w-20 space-y-1 sm:w-24">
-                        <Label className="text-xs text-muted-foreground">GST %</Label>
-                        <Select
-                          value={line.tax_rate}
-                          onValueChange={(v) =>
-                            setLines((ls) =>
-                              ls.map((l, i) => (i === idx ? { ...l, tax_rate: v } : l)),
-                            )
-                          }
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {GST_RATE_SLABS.map((rate) => (
-                              <SelectItem key={rate} value={String(rate)}>
-                                {rate}%
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        disabled={lines.length === 1}
-                        onClick={() => setLines((ls) => ls.filter((_, i) => i !== idx))}
-                      >
-                        <Trash2 className="size-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {supplierId ? (
-                gstTotals.incomplete ? (
-                  <p className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn">
-                    Can't compute GST for this order yet — set a state on this supplier and on your
-                    business's GST profile (Account settings) so CGST/SGST vs. IGST can be
-                    determined.
-                  </p>
-                ) : (
-                  <div className="space-y-1 rounded-lg bg-muted/50 px-4 py-3 text-sm">
-                    <div className="flex items-center justify-between text-muted-foreground">
-                      <span>
-                        {gstTotals.igstAmount > 0
-                          ? "IGST (interstate)"
-                          : "CGST + SGST (intrastate)"}
-                      </span>
-                      <span>{inr.format(gstTotals.totalTax)}</span>
-                    </div>
-                    {gstTotals.igstAmount === 0 ? (
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span>
-                          CGST {inr.format(gstTotals.cgstAmount)} + SGST{" "}
-                          {inr.format(gstTotals.sgstAmount)}
-                        </span>
-                      </div>
-                    ) : null}
+        canEdit && (
+          <Dialog open={formOpen} onOpenChange={setFormOpen}>
+            <DialogTrigger asChild>
+              <Button
+                size="sm"
+                onClick={() => {
+                  resetCreateForm();
+                  setEditingId(null);
+                }}
+              >
+                <Plus className="size-4" />
+                New purchase order
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>
+                  {editingId ? "Edit purchase order" : "New purchase order"}
+                </DialogTitle>
+              </DialogHeader>
+              <form
+                className="space-y-4"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  savePo.mutate();
+                }}
+              >
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="po-supplier">Supplier</Label>
+                    <Select value={supplierId} onValueChange={setSupplierId}>
+                      <SelectTrigger id="po-supplier">
+                        <SelectValue placeholder="Select supplier" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(suppliers.data ?? []).map((s) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-                )
-              ) : null}
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="po-discount">Discount</Label>
-                  <Input
-                    id="po-discount"
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={discountAmount}
-                    onChange={(e) => setDiscountAmount(e.target.value)}
-                  />
+                  <div className="space-y-2">
+                    <Label htmlFor="po-warehouse">Receiving warehouse</Label>
+                    <Select value={warehouseId} onValueChange={setWarehouseId}>
+                      <SelectTrigger id="po-warehouse">
+                        <SelectValue placeholder="Select warehouse" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(warehouses.data ?? []).map((w) => (
+                          <SelectItem key={w.id} value={w.id}>
+                            {w.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="po-delivery">Expected delivery</Label>
+                    <Input
+                      id="po-delivery"
+                      type="date"
+                      value={expectedDelivery}
+                      onChange={(e) => setExpectedDelivery(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="po-notes">Notes</Label>
+                    <Input id="po-notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
+                  </div>
                 </div>
+
                 <div className="space-y-2">
-                  <Label htmlFor="po-shipping">Shipping</Label>
-                  <Input
-                    id="po-shipping"
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={shippingAmount}
-                    onChange={(e) => setShippingAmount(e.target.value)}
-                  />
+                  <div className="flex items-center justify-between">
+                    <Label>Line items</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setLines((ls) => [...ls, emptyLine()])}
+                    >
+                      <Plus className="size-4" />
+                      Add line
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    {lines.map((line, idx) => (
+                      <div key={idx} className="flex flex-wrap items-end gap-2">
+                        <div className="w-full space-y-1 sm:min-w-0 sm:flex-1">
+                          <Label className="text-xs text-muted-foreground">Product</Label>
+                          <Select
+                            value={line.product_id}
+                            onValueChange={(v) => {
+                              const product = products.data?.find((p) => p.id === v);
+                              setLines((ls) =>
+                                ls.map((l, i) =>
+                                  i === idx
+                                    ? {
+                                        ...l,
+                                        product_id: v,
+                                        unit_cost: product
+                                          ? String(product.cost_price ?? 0)
+                                          : l.unit_cost,
+                                        tax_rate: product
+                                          ? String(product.tax_rate ?? 0)
+                                          : l.tax_rate,
+                                      }
+                                    : l,
+                                ),
+                              );
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select product" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {(products.data ?? []).map((p) => (
+                                <SelectItem key={p.id} value={p.id!}>
+                                  {p.name} ({p.sku})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="w-[4.5rem] space-y-1 sm:w-24">
+                          <Label className="text-xs text-muted-foreground">Qty</Label>
+                          <Input
+                            type="number"
+                            min={0.01}
+                            step="0.01"
+                            value={line.quantity}
+                            onChange={(e) =>
+                              setLines((ls) =>
+                                ls.map((l, i) =>
+                                  i === idx ? { ...l, quantity: e.target.value } : l,
+                                ),
+                              )
+                            }
+                          />
+                        </div>
+                        <div className="w-20 space-y-1 sm:w-28">
+                          <Label className="text-xs text-muted-foreground">Unit cost</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            value={line.unit_cost}
+                            onChange={(e) =>
+                              setLines((ls) =>
+                                ls.map((l, i) =>
+                                  i === idx ? { ...l, unit_cost: e.target.value } : l,
+                                ),
+                              )
+                            }
+                          />
+                        </div>
+                        <div className="w-20 space-y-1 sm:w-24">
+                          <Label className="text-xs text-muted-foreground">GST %</Label>
+                          <Select
+                            value={line.tax_rate}
+                            onValueChange={(v) =>
+                              setLines((ls) =>
+                                ls.map((l, i) => (i === idx ? { ...l, tax_rate: v } : l)),
+                              )
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {GST_RATE_SLABS.map((rate) => (
+                                <SelectItem key={rate} value={String(rate)}>
+                                  {rate}%
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          disabled={lines.length === 1}
+                          onClick={() => setLines((ls) => ls.filter((_, i) => i !== idx))}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
 
-              <div className="flex items-center justify-between rounded-lg bg-muted/50 px-4 py-3 text-sm">
-                <span className="text-muted-foreground">Total</span>
-                <span className="font-display text-lg font-semibold">{inr.format(total)}</span>
-              </div>
+                {supplierId ? (
+                  gstTotals.incomplete ? (
+                    <p className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn">
+                      Can't compute GST for this order yet — set a state on this supplier and on
+                      your business's GST profile (Account settings) so CGST/SGST vs. IGST can be
+                      determined.
+                    </p>
+                  ) : (
+                    <div className="space-y-1 rounded-lg bg-muted/50 px-4 py-3 text-sm">
+                      <div className="flex items-center justify-between text-muted-foreground">
+                        <span>
+                          {gstTotals.igstAmount > 0
+                            ? "IGST (interstate)"
+                            : "CGST + SGST (intrastate)"}
+                        </span>
+                        <span>{inr.format(gstTotals.totalTax)}</span>
+                      </div>
+                      {gstTotals.igstAmount === 0 ? (
+                        <div className="flex items-center justify-between text-xs text-muted-foreground">
+                          <span>
+                            CGST {inr.format(gstTotals.cgstAmount)} + SGST{" "}
+                            {inr.format(gstTotals.sgstAmount)}
+                          </span>
+                        </div>
+                      ) : null}
+                    </div>
+                  )
+                ) : null}
 
-              <DialogFooter>
-                <Button type="submit" disabled={savePo.isPending || !supplierId || !warehouseId}>
-                  {savePo.isPending
-                    ? "Saving…"
-                    : editingId
-                      ? "Save changes"
-                      : "Create purchase order"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="po-discount">Discount</Label>
+                    <Input
+                      id="po-discount"
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={discountAmount}
+                      onChange={(e) => setDiscountAmount(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="po-shipping">Shipping</Label>
+                    <Input
+                      id="po-shipping"
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={shippingAmount}
+                      onChange={(e) => setShippingAmount(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between rounded-lg bg-muted/50 px-4 py-3 text-sm">
+                  <span className="text-muted-foreground">Total</span>
+                  <span className="font-display text-lg font-semibold">{inr.format(total)}</span>
+                </div>
+
+                <DialogFooter>
+                  <Button type="submit" disabled={savePo.isPending || !supplierId || !warehouseId}>
+                    {savePo.isPending
+                      ? "Saving…"
+                      : editingId
+                        ? "Save changes"
+                        : "Create purchase order"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        )
       }
     >
       {purchaseOrders.isLoading ? (
@@ -731,7 +757,7 @@ function PurchaseOrders() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        {po.status === "draft" ? (
+                        {po.status === "draft" && canEdit ? (
                           <Button variant="ghost" size="sm" onClick={() => startEdit(po)}>
                             <Pencil className="size-4" />
                             Edit
@@ -747,7 +773,7 @@ function PurchaseOrders() {
                         >
                           View
                         </Button>
-                        {primaryAction(po.status) ? (
+                        {primaryAction(po.status) && canPrimaryAction(po.status) ? (
                           <Button
                             size="sm"
                             onClick={() =>
@@ -795,7 +821,7 @@ function PurchaseOrders() {
                   </div>
                 </div>
                 <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-3">
-                  {po.status === "draft" ? (
+                  {po.status === "draft" && canEdit ? (
                     <Button variant="ghost" size="sm" onClick={() => startEdit(po)}>
                       <Pencil className="size-4" />
                       Edit
@@ -811,7 +837,7 @@ function PurchaseOrders() {
                   >
                     View
                   </Button>
-                  {primaryAction(po.status) ? (
+                  {primaryAction(po.status) && canPrimaryAction(po.status) ? (
                     <Button
                       size="sm"
                       onClick={() =>
@@ -886,7 +912,8 @@ function PurchaseOrders() {
                       <TableHead className="text-right">Received</TableHead>
                       <TableHead className="text-right">Unit cost</TableHead>
                       <TableHead className="text-right">GST</TableHead>
-                      {["sent", "approved", "partially_received"].includes(selectedPo.status) ? (
+                      {canReceivePermission &&
+                      ["sent", "approved", "partially_received"].includes(selectedPo.status) ? (
                         <TableHead className="text-right">Receive</TableHead>
                       ) : null}
                     </TableRow>
@@ -894,9 +921,9 @@ function PurchaseOrders() {
                   <TableBody>
                     {(detail.data ?? []).map((item) => {
                       const remaining = Number(item.quantity) - Number(item.received_quantity);
-                      const canReceive = ["sent", "approved", "partially_received"].includes(
-                        selectedPo.status,
-                      );
+                      const canReceive =
+                        canReceivePermission &&
+                        ["sent", "approved", "partially_received"].includes(selectedPo.status);
                       return (
                         <TableRow key={item.id}>
                           <TableCell className="font-medium">
@@ -956,9 +983,9 @@ function PurchaseOrders() {
               <div className="space-y-3 sm:hidden">
                 {(detail.data ?? []).map((item) => {
                   const remaining = Number(item.quantity) - Number(item.received_quantity);
-                  const canReceive = ["sent", "approved", "partially_received"].includes(
-                    selectedPo.status,
-                  );
+                  const canReceive =
+                    canReceivePermission &&
+                    ["sent", "approved", "partially_received"].includes(selectedPo.status);
                   return (
                     <div key={item.id} className="rounded-lg border border-border p-3">
                       <p className="font-medium">
@@ -1074,7 +1101,7 @@ function PurchaseOrders() {
               </div>
 
               <div className="flex flex-wrap justify-end gap-2">
-                {selectedPo.status === "draft" ? (
+                {selectedPo.status === "draft" && canEdit ? (
                   <Button
                     variant="outline"
                     onClick={() => {
@@ -1086,7 +1113,7 @@ function PurchaseOrders() {
                     Edit
                   </Button>
                 ) : null}
-                {primaryAction(selectedPo.status) ? (
+                {primaryAction(selectedPo.status) && canPrimaryAction(selectedPo.status) ? (
                   <Button
                     size="lg"
                     disabled={updateStatus.isPending}

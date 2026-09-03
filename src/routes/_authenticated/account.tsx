@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { INDIAN_STATES, isValidGstin } from "@/lib/gst";
+import { usePermissions } from "@/hooks/usePermissions";
 
 const CURRENCIES = [
   { value: "INR", label: "INR — Indian Rupee" },
@@ -55,7 +56,7 @@ export const Route = createFileRoute("/_authenticated/account")({
 
 function Account() {
   const { user } = useAuth();
-  const { org, role } = useCurrentOrg();
+  const { org } = useCurrentOrg();
   const queryClient = useQueryClient();
   const [fullName, setFullName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -111,7 +112,8 @@ function Account() {
     else toast.success("Profile updated");
   };
 
-  const canEditOrg = role === "owner" || role === "admin";
+  const { can } = usePermissions();
+  const canEditOrg = can("settings.manage");
 
   const saveOrg = async (e: React.FormEvent) => {
     e.preventDefault();

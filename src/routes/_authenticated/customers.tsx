@@ -36,6 +36,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { INDIAN_STATES, isValidGstin } from "@/lib/gst";
+import { usePermissions } from "@/hooks/usePermissions";
 
 export const Route = createFileRoute("/_authenticated/customers")({
   head: () => ({
@@ -61,6 +62,8 @@ const emptyForm = {
 
 function Customers() {
   const { org } = useCurrentOrg();
+  const { can } = usePermissions();
+  const canEdit = can("customers.edit");
   const orgId = org?.id;
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -142,118 +145,120 @@ function Customers() {
       title="Customers"
       description="Buyers for sales orders and invoicing."
       actions={
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button
-              size="sm"
-              onClick={() => {
-                setForm(emptyForm);
-                setEditingId(null);
-              }}
-            >
-              <Plus className="size-4" />
-              New customer
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{editingId ? "Edit customer" : "New customer"}</DialogTitle>
-            </DialogHeader>
-            <form
-              className="space-y-4"
-              onSubmit={(e) => {
-                e.preventDefault();
-                saveCustomer.mutate();
-              }}
-            >
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="cust-name">Name</Label>
-                  <Input
-                    id="cust-name"
-                    required
-                    value={form.name}
-                    onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                    placeholder="Retail Buyer Pvt Ltd"
-                  />
+        canEdit && (
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button
+                size="sm"
+                onClick={() => {
+                  setForm(emptyForm);
+                  setEditingId(null);
+                }}
+              >
+                <Plus className="size-4" />
+                New customer
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{editingId ? "Edit customer" : "New customer"}</DialogTitle>
+              </DialogHeader>
+              <form
+                className="space-y-4"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  saveCustomer.mutate();
+                }}
+              >
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="cust-name">Name</Label>
+                    <Input
+                      id="cust-name"
+                      required
+                      value={form.name}
+                      onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                      placeholder="Retail Buyer Pvt Ltd"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="cust-phone">Phone</Label>
+                    <Input
+                      id="cust-phone"
+                      value={form.phone}
+                      onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="cust-email">Email</Label>
+                    <Input
+                      id="cust-email"
+                      type="email"
+                      value={form.email}
+                      onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="cust-gst">GSTIN</Label>
+                    <Input
+                      id="cust-gst"
+                      value={form.gstin}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, gstin: e.target.value.toUpperCase() }))
+                      }
+                      placeholder="22AAAAA0000A1Z5"
+                      maxLength={15}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="cust-state">State (for GST place of supply)</Label>
+                    <Select
+                      value={form.state}
+                      onValueChange={(v) => setForm((f) => ({ ...f, state: v }))}
+                    >
+                      <SelectTrigger id="cust-state">
+                        <SelectValue placeholder="Select state" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {INDIAN_STATES.map((s) => (
+                          <SelectItem key={s.code} value={s.name}>
+                            {s.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="cust-billing">Billing address</Label>
+                    <Input
+                      id="cust-billing"
+                      value={form.billing_address}
+                      onChange={(e) => setForm((f) => ({ ...f, billing_address: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="cust-shipping">Shipping address</Label>
+                    <Input
+                      id="cust-shipping"
+                      value={form.shipping_address}
+                      onChange={(e) => setForm((f) => ({ ...f, shipping_address: e.target.value }))}
+                      placeholder="Same as billing if left blank"
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="cust-phone">Phone</Label>
-                  <Input
-                    id="cust-phone"
-                    value={form.phone}
-                    onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="cust-email">Email</Label>
-                  <Input
-                    id="cust-email"
-                    type="email"
-                    value={form.email}
-                    onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="cust-gst">GSTIN</Label>
-                  <Input
-                    id="cust-gst"
-                    value={form.gstin}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, gstin: e.target.value.toUpperCase() }))
-                    }
-                    placeholder="22AAAAA0000A1Z5"
-                    maxLength={15}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="cust-state">State (for GST place of supply)</Label>
-                  <Select
-                    value={form.state}
-                    onValueChange={(v) => setForm((f) => ({ ...f, state: v }))}
-                  >
-                    <SelectTrigger id="cust-state">
-                      <SelectValue placeholder="Select state" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {INDIAN_STATES.map((s) => (
-                        <SelectItem key={s.code} value={s.name}>
-                          {s.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="cust-billing">Billing address</Label>
-                  <Input
-                    id="cust-billing"
-                    value={form.billing_address}
-                    onChange={(e) => setForm((f) => ({ ...f, billing_address: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="cust-shipping">Shipping address</Label>
-                  <Input
-                    id="cust-shipping"
-                    value={form.shipping_address}
-                    onChange={(e) => setForm((f) => ({ ...f, shipping_address: e.target.value }))}
-                    placeholder="Same as billing if left blank"
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button type="submit" disabled={saveCustomer.isPending}>
-                  {saveCustomer.isPending
-                    ? "Saving…"
-                    : editingId
-                      ? "Save changes"
-                      : "Create customer"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+                <DialogFooter>
+                  <Button type="submit" disabled={saveCustomer.isPending}>
+                    {saveCustomer.isPending
+                      ? "Saving…"
+                      : editingId
+                        ? "Save changes"
+                        : "Create customer"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        )
       }
     >
       {customers.isLoading ? (
@@ -278,7 +283,7 @@ function Customers() {
                   <TableHead>State</TableHead>
                   <TableHead>GSTIN</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  {canEdit && <TableHead className="text-right">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -294,21 +299,23 @@ function Customers() {
                         {cust.is_active ? "Active" : "Inactive"}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" onClick={() => startEdit(cust)}>
-                        <Pencil className="size-4" />
-                        Edit
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          toggleActive.mutate({ id: cust.id, is_active: !cust.is_active })
-                        }
-                      >
-                        {cust.is_active ? "Deactivate" : "Activate"}
-                      </Button>
-                    </TableCell>
+                    {canEdit && (
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="sm" onClick={() => startEdit(cust)}>
+                          <Pencil className="size-4" />
+                          Edit
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() =>
+                            toggleActive.mutate({ id: cust.id, is_active: !cust.is_active })
+                          }
+                        >
+                          {cust.is_active ? "Deactivate" : "Activate"}
+                        </Button>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>
@@ -341,19 +348,23 @@ function Customers() {
                     <p className="truncate font-mono text-xs">{cust.gstin ?? "—"}</p>
                   </div>
                 </div>
-                <div className="flex justify-end gap-2 border-t border-border pt-3">
-                  <Button variant="ghost" size="sm" onClick={() => startEdit(cust)}>
-                    <Pencil className="size-4" />
-                    Edit
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => toggleActive.mutate({ id: cust.id, is_active: !cust.is_active })}
-                  >
-                    {cust.is_active ? "Deactivate" : "Activate"}
-                  </Button>
-                </div>
+                {canEdit && (
+                  <div className="flex justify-end gap-2 border-t border-border pt-3">
+                    <Button variant="ghost" size="sm" onClick={() => startEdit(cust)}>
+                      <Pencil className="size-4" />
+                      Edit
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        toggleActive.mutate({ id: cust.id, is_active: !cust.is_active })
+                      }
+                    >
+                      {cust.is_active ? "Deactivate" : "Activate"}
+                    </Button>
+                  </div>
+                )}
               </div>
             ))}
           </div>

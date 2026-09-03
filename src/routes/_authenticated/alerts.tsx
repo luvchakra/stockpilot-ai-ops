@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate } from "@/lib/format";
+import { usePermissions } from "@/hooks/usePermissions";
 
 export const Route = createFileRoute("/_authenticated/alerts")({
   head: () => ({
@@ -31,6 +32,8 @@ const SEVERITY_VARIANT: Record<string, "default" | "secondary" | "destructive"> 
 
 function Alerts() {
   const { org } = useCurrentOrg();
+  const { can } = usePermissions();
+  const canManage = can("alerts.manage");
   const orgId = org?.id;
   const queryClient = useQueryClient();
 
@@ -61,8 +64,12 @@ function Alerts() {
     onError: (err) => toast.error(err instanceof Error ? err.message : "Could not update alert"),
   });
 
-  const openAlerts = (alerts.data ?? []).filter((a) => a.status === "open" || a.status === "acknowledged");
-  const closedAlerts = (alerts.data ?? []).filter((a) => a.status === "resolved" || a.status === "dismissed");
+  const openAlerts = (alerts.data ?? []).filter(
+    (a) => a.status === "open" || a.status === "acknowledged",
+  );
+  const closedAlerts = (alerts.data ?? []).filter(
+    (a) => a.status === "resolved" || a.status === "dismissed",
+  );
 
   return (
     <AppShell title="Alerts" description="Everything that needs your attention today.">
@@ -104,36 +111,42 @@ function Alerts() {
                           Recommended: {alert.recommended_action}
                         </p>
                       ) : null}
-                      <p className="mt-1 text-xs text-muted-foreground">{formatDate(alert.created_at)}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {formatDate(alert.created_at)}
+                      </p>
                     </div>
                   </div>
-                  <div className="flex shrink-0 gap-2">
-                    {alert.status === "open" ? (
+                  {canManage && (
+                    <div className="flex shrink-0 gap-2">
+                      {alert.status === "open" ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            updateStatus.mutate({ id: alert.id, status: "acknowledged" })
+                          }
+                        >
+                          Acknowledge
+                        </Button>
+                      ) : null}
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => updateStatus.mutate({ id: alert.id, status: "acknowledged" })}
+                        onClick={() => updateStatus.mutate({ id: alert.id, status: "resolved" })}
                       >
-                        Acknowledge
+                        <CheckCircle2 className="size-4" />
+                        Resolve
                       </Button>
-                    ) : null}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => updateStatus.mutate({ id: alert.id, status: "resolved" })}
-                    >
-                      <CheckCircle2 className="size-4" />
-                      Resolve
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => updateStatus.mutate({ id: alert.id, status: "dismissed" })}
-                    >
-                      <XCircle className="size-4" />
-                      Dismiss
-                    </Button>
-                  </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => updateStatus.mutate({ id: alert.id, status: "dismissed" })}
+                      >
+                        <XCircle className="size-4" />
+                        Dismiss
+                      </Button>
+                    </div>
+                  )}
                 </div>
               ))
             )}
@@ -141,7 +154,9 @@ function Alerts() {
 
           {closedAlerts.length > 0 ? (
             <div>
-              <h2 className="mb-3 text-sm font-semibold text-muted-foreground">Resolved &amp; dismissed</h2>
+              <h2 className="mb-3 text-sm font-semibold text-muted-foreground">
+                Resolved &amp; dismissed
+              </h2>
               <div className="space-y-2">
                 {closedAlerts.map((alert) => (
                   <div

@@ -406,6 +406,24 @@ export type Database = {
         }
         Relationships: []
       }
+      permissions: {
+        Row: {
+          description: string
+          key: string
+          module: string
+        }
+        Insert: {
+          description: string
+          key: string
+          module: string
+        }
+        Update: {
+          description?: string
+          key?: string
+          module?: string
+        }
+        Relationships: []
+      }
       products: {
         Row: {
           barcode: string | null
@@ -656,6 +674,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "purchase_order_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products_safe"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "purchase_order_items_purchase_order_id_fkey"
             columns: ["purchase_order_id"]
             isOneToOne: false
@@ -755,6 +780,29 @@ export type Database = {
           },
         ]
       }
+      role_permissions: {
+        Row: {
+          permission_key: string
+          role: string
+        }
+        Insert: {
+          permission_key: string
+          role: string
+        }
+        Update: {
+          permission_key?: string
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "role_permissions_permission_key_fkey"
+            columns: ["permission_key"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
       sales_invoice_counters: {
         Row: {
           financial_year: string
@@ -844,6 +892,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_invoice_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products_safe"
             referencedColumns: ["id"]
           },
         ]
@@ -1021,6 +1076,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "sales_order_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products_safe"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "sales_order_items_sales_order_id_fkey"
             columns: ["sales_order_id"]
             isOneToOne: false
@@ -1173,6 +1235,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "stock_levels_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products_safe"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "stock_levels_warehouse_id_fkey"
             columns: ["warehouse_id"]
             isOneToOne: false
@@ -1231,6 +1300,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_movements_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products_safe"
             referencedColumns: ["id"]
           },
           {
@@ -1377,7 +1453,97 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      products_safe: {
+        Row: {
+          barcode: string | null
+          brand: string | null
+          category_id: string | null
+          cost_price: number | null
+          created_at: string | null
+          description: string | null
+          hsn_code: string | null
+          id: string | null
+          image_url: string | null
+          name: string | null
+          org_id: string | null
+          reorder_point: number | null
+          reorder_quantity: number | null
+          selling_price: number | null
+          sku: string | null
+          status: string | null
+          supplier_id: string | null
+          tax_rate: number | null
+          unit: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          barcode?: string | null
+          brand?: string | null
+          category_id?: string | null
+          cost_price?: never
+          created_at?: string | null
+          description?: string | null
+          hsn_code?: string | null
+          id?: string | null
+          image_url?: string | null
+          name?: string | null
+          org_id?: string | null
+          reorder_point?: number | null
+          reorder_quantity?: number | null
+          selling_price?: number | null
+          sku?: string | null
+          status?: string | null
+          supplier_id?: string | null
+          tax_rate?: number | null
+          unit?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          barcode?: string | null
+          brand?: string | null
+          category_id?: string | null
+          cost_price?: never
+          created_at?: string | null
+          description?: string | null
+          hsn_code?: string | null
+          id?: string | null
+          image_url?: string | null
+          name?: string | null
+          org_id?: string | null
+          reorder_point?: number | null
+          reorder_quantity?: number | null
+          selling_price?: number | null
+          sku?: string | null
+          status?: string | null
+          supplier_id?: string | null
+          tax_rate?: number | null
+          unit?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "products_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       cancel_sales_order: { Args: { _so_id: string }; Returns: undefined }
@@ -1386,8 +1552,8 @@ export type Database = {
         Args: {
           _invoice_id: string
           _is_full: boolean
-          _reason?: string | undefined
-          _subtotal?: number | undefined
+          _reason?: string
+          _subtotal?: number
         }
         Returns: string
       }
@@ -1399,6 +1565,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      has_permission: { Args: { _key: string; _org: string }; Returns: boolean }
       is_org_member: { Args: { _org: string }; Returns: boolean }
       next_credit_note_number: { Args: { _org_id: string }; Returns: string }
       next_sales_invoice_number: { Args: { _org_id: string }; Returns: string }
@@ -1424,7 +1591,17 @@ export type Database = {
         | "reserve"
         | "unreserve"
         | "expired"
-      org_role: "owner" | "admin" | "manager" | "staff" | "viewer"
+      org_role:
+        | "owner"
+        | "admin"
+        | "manager"
+        | "staff"
+        | "viewer"
+        | "inventory_manager"
+        | "procurement_manager"
+        | "sales_manager"
+        | "accountant"
+        | "warehouse_operator"
       po_status:
         | "draft"
         | "pending_approval"
@@ -1458,12 +1635,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1487,11 +1664,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1512,11 +1689,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1537,11 +1714,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1554,11 +1731,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1585,7 +1762,18 @@ export const Constants = {
         "unreserve",
         "expired",
       ],
-      org_role: ["owner", "admin", "manager", "staff", "viewer"],
+      org_role: [
+        "owner",
+        "admin",
+        "manager",
+        "staff",
+        "viewer",
+        "inventory_manager",
+        "procurement_manager",
+        "sales_manager",
+        "accountant",
+        "warehouse_operator",
+      ],
       po_status: [
         "draft",
         "pending_approval",

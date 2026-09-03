@@ -38,6 +38,7 @@ import {
 import { inr, formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { GST_RATE_SLABS, aggregateGst, computeLineGst, resolveStateCode } from "@/lib/gst";
+import { usePermissions } from "@/hooks/usePermissions";
 
 export const Route = createFileRoute("/_authenticated/sales-orders")({
   head: () => ({
@@ -193,6 +194,11 @@ function StageStepper({ status }: { status: SoStatus }) {
 
 function SalesOrders() {
   const { org } = useCurrentOrg();
+  const { can } = usePermissions();
+  const canEdit = can("sales_orders.edit");
+  const canConfirm = can("sales_orders.confirm");
+  const canShip = can("sales_orders.ship");
+  const canCancel = can("sales_orders.cancel");
   const orgId = org?.id;
   const queryClient = useQueryClient();
 
@@ -487,266 +493,283 @@ function SalesOrders() {
     shipOrder.isPending ||
     cancelOrder.isPending;
 
+  // draft->confirmed needs sales_orders.confirm; the fulfillment steps in
+  // between (processing/packed) and the final ship are all floor work
+  // gated by sales_orders.ship, matching the Warehouse Operator persona
+  // (ships orders, doesn't confirm them).
+  const canRunPrimaryAction = (status: SoStatus) => {
+    const action = primaryAction(status);
+    if (!action) return false;
+    if (action.kind === "confirm") return canConfirm;
+    return canShip;
+  };
+
   return (
     <AppShell
       title="Sales Orders"
       description="Create, confirm and fulfil sales orders."
       actions={
-        <Dialog open={formOpen} onOpenChange={setFormOpen}>
-          <DialogTrigger asChild>
-            <Button
-              size="sm"
-              onClick={() => {
-                resetCreateForm();
-                setEditingId(null);
-              }}
-            >
-              <Plus className="size-4" />
-              New sales order
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>{editingId ? "Edit sales order" : "New sales order"}</DialogTitle>
-            </DialogHeader>
-            <form
-              className="space-y-4"
-              onSubmit={(e) => {
-                e.preventDefault();
-                saveSo.mutate();
-              }}
-            >
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="so-customer">Customer</Label>
-                  <Select value={customerId} onValueChange={setCustomerId}>
-                    <SelectTrigger id="so-customer">
-                      <SelectValue placeholder="Select customer" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(customers.data ?? []).map((c: CustomerOption) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="so-warehouse">Fulfilling warehouse</Label>
-                  <Select value={warehouseId} onValueChange={setWarehouseId}>
-                    <SelectTrigger id="so-warehouse">
-                      <SelectValue placeholder="Select warehouse" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(warehouses.data ?? []).map((w: WarehouseOption) => (
-                        <SelectItem key={w.id} value={w.id}>
-                          {w.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="so-fulfillment">Expected fulfillment</Label>
-                  <Input
-                    id="so-fulfillment"
-                    type="date"
-                    value={expectedFulfillment}
-                    onChange={(e) => setExpectedFulfillment(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="so-notes">Notes</Label>
-                  <Input id="so-notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>Line items</Label>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setLines((ls) => [...ls, emptyLine()])}
-                  >
-                    <Plus className="size-4" />
-                    Add line
-                  </Button>
-                </div>
-                <div className="space-y-2">
-                  {lines.map((line, idx) => (
-                    <div key={idx} className="flex flex-wrap items-end gap-2">
-                      <div className="w-full space-y-1 sm:min-w-0 sm:flex-1">
-                        <Label className="text-xs text-muted-foreground">Product</Label>
-                        <Select
-                          value={line.product_id}
-                          onValueChange={(v) => {
-                            const product = products.data?.find((p: ProductOption) => p.id === v);
-                            setLines((ls) =>
-                              ls.map((l, i) =>
-                                i === idx
-                                  ? {
-                                      ...l,
-                                      product_id: v,
-                                      unit_price: product
-                                        ? String(product.selling_price)
-                                        : l.unit_price,
-                                      tax_rate: product ? String(product.tax_rate) : l.tax_rate,
-                                    }
-                                  : l,
-                              ),
-                            );
-                          }}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select product" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {(products.data ?? []).map((p: ProductOption) => (
-                              <SelectItem key={p.id} value={p.id}>
-                                {p.name} ({p.sku})
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="w-[4.5rem] space-y-1 sm:w-24">
-                        <Label className="text-xs text-muted-foreground">Qty</Label>
-                        <Input
-                          type="number"
-                          min={0.01}
-                          step="0.01"
-                          value={line.quantity}
-                          onChange={(e) =>
-                            setLines((ls) =>
-                              ls.map((l, i) =>
-                                i === idx ? { ...l, quantity: e.target.value } : l,
-                              ),
-                            )
-                          }
-                        />
-                      </div>
-                      <div className="w-20 space-y-1 sm:w-28">
-                        <Label className="text-xs text-muted-foreground">Unit price</Label>
-                        <Input
-                          type="number"
-                          min={0}
-                          step="0.01"
-                          value={line.unit_price}
-                          onChange={(e) =>
-                            setLines((ls) =>
-                              ls.map((l, i) =>
-                                i === idx ? { ...l, unit_price: e.target.value } : l,
-                              ),
-                            )
-                          }
-                        />
-                      </div>
-                      <div className="w-20 space-y-1 sm:w-24">
-                        <Label className="text-xs text-muted-foreground">GST %</Label>
-                        <Select
-                          value={line.tax_rate}
-                          onValueChange={(v) =>
-                            setLines((ls) =>
-                              ls.map((l, i) => (i === idx ? { ...l, tax_rate: v } : l)),
-                            )
-                          }
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {GST_RATE_SLABS.map((rate) => (
-                              <SelectItem key={rate} value={String(rate)}>
-                                {rate}%
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        disabled={lines.length === 1}
-                        onClick={() => setLines((ls) => ls.filter((_, i) => i !== idx))}
-                      >
-                        <Trash2 className="size-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {customerId ? (
-                gstTotals.incomplete ? (
-                  <p className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn">
-                    Can't compute GST for this order yet — set a state on this customer and on your
-                    business's GST profile (Account settings) so CGST/SGST vs. IGST can be
-                    determined.
-                  </p>
-                ) : (
-                  <div className="space-y-1 rounded-lg bg-muted/50 px-4 py-3 text-sm">
-                    <div className="flex items-center justify-between text-muted-foreground">
-                      <span>
-                        {gstTotals.igstAmount > 0
-                          ? "IGST (interstate)"
-                          : "CGST + SGST (intrastate)"}
-                      </span>
-                      <span>{inr.format(gstTotals.totalTax)}</span>
-                    </div>
-                    {gstTotals.igstAmount === 0 ? (
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span>
-                          CGST {inr.format(gstTotals.cgstAmount)} + SGST{" "}
-                          {inr.format(gstTotals.sgstAmount)}
-                        </span>
-                      </div>
-                    ) : null}
+        canEdit && (
+          <Dialog open={formOpen} onOpenChange={setFormOpen}>
+            <DialogTrigger asChild>
+              <Button
+                size="sm"
+                onClick={() => {
+                  resetCreateForm();
+                  setEditingId(null);
+                }}
+              >
+                <Plus className="size-4" />
+                New sales order
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>{editingId ? "Edit sales order" : "New sales order"}</DialogTitle>
+              </DialogHeader>
+              <form
+                className="space-y-4"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  saveSo.mutate();
+                }}
+              >
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="so-customer">Customer</Label>
+                    <Select value={customerId} onValueChange={setCustomerId}>
+                      <SelectTrigger id="so-customer">
+                        <SelectValue placeholder="Select customer" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(customers.data ?? []).map((c: CustomerOption) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-                )
-              ) : null}
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="so-discount">Discount</Label>
-                  <Input
-                    id="so-discount"
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={discountAmount}
-                    onChange={(e) => setDiscountAmount(e.target.value)}
-                  />
+                  <div className="space-y-2">
+                    <Label htmlFor="so-warehouse">Fulfilling warehouse</Label>
+                    <Select value={warehouseId} onValueChange={setWarehouseId}>
+                      <SelectTrigger id="so-warehouse">
+                        <SelectValue placeholder="Select warehouse" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(warehouses.data ?? []).map((w: WarehouseOption) => (
+                          <SelectItem key={w.id} value={w.id}>
+                            {w.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="so-fulfillment">Expected fulfillment</Label>
+                    <Input
+                      id="so-fulfillment"
+                      type="date"
+                      value={expectedFulfillment}
+                      onChange={(e) => setExpectedFulfillment(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="so-notes">Notes</Label>
+                    <Input id="so-notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
+                  </div>
                 </div>
+
                 <div className="space-y-2">
-                  <Label htmlFor="so-shipping">Shipping</Label>
-                  <Input
-                    id="so-shipping"
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={shippingAmount}
-                    onChange={(e) => setShippingAmount(e.target.value)}
-                  />
+                  <div className="flex items-center justify-between">
+                    <Label>Line items</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setLines((ls) => [...ls, emptyLine()])}
+                    >
+                      <Plus className="size-4" />
+                      Add line
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    {lines.map((line, idx) => (
+                      <div key={idx} className="flex flex-wrap items-end gap-2">
+                        <div className="w-full space-y-1 sm:min-w-0 sm:flex-1">
+                          <Label className="text-xs text-muted-foreground">Product</Label>
+                          <Select
+                            value={line.product_id}
+                            onValueChange={(v) => {
+                              const product = products.data?.find((p: ProductOption) => p.id === v);
+                              setLines((ls) =>
+                                ls.map((l, i) =>
+                                  i === idx
+                                    ? {
+                                        ...l,
+                                        product_id: v,
+                                        unit_price: product
+                                          ? String(product.selling_price)
+                                          : l.unit_price,
+                                        tax_rate: product ? String(product.tax_rate) : l.tax_rate,
+                                      }
+                                    : l,
+                                ),
+                              );
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select product" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {(products.data ?? []).map((p: ProductOption) => (
+                                <SelectItem key={p.id} value={p.id}>
+                                  {p.name} ({p.sku})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="w-[4.5rem] space-y-1 sm:w-24">
+                          <Label className="text-xs text-muted-foreground">Qty</Label>
+                          <Input
+                            type="number"
+                            min={0.01}
+                            step="0.01"
+                            value={line.quantity}
+                            onChange={(e) =>
+                              setLines((ls) =>
+                                ls.map((l, i) =>
+                                  i === idx ? { ...l, quantity: e.target.value } : l,
+                                ),
+                              )
+                            }
+                          />
+                        </div>
+                        <div className="w-20 space-y-1 sm:w-28">
+                          <Label className="text-xs text-muted-foreground">Unit price</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            value={line.unit_price}
+                            onChange={(e) =>
+                              setLines((ls) =>
+                                ls.map((l, i) =>
+                                  i === idx ? { ...l, unit_price: e.target.value } : l,
+                                ),
+                              )
+                            }
+                          />
+                        </div>
+                        <div className="w-20 space-y-1 sm:w-24">
+                          <Label className="text-xs text-muted-foreground">GST %</Label>
+                          <Select
+                            value={line.tax_rate}
+                            onValueChange={(v) =>
+                              setLines((ls) =>
+                                ls.map((l, i) => (i === idx ? { ...l, tax_rate: v } : l)),
+                              )
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {GST_RATE_SLABS.map((rate) => (
+                                <SelectItem key={rate} value={String(rate)}>
+                                  {rate}%
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          disabled={lines.length === 1}
+                          onClick={() => setLines((ls) => ls.filter((_, i) => i !== idx))}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
 
-              <div className="flex items-center justify-between rounded-lg bg-muted/50 px-4 py-3 text-sm">
-                <span className="text-muted-foreground">Total</span>
-                <span className="font-display text-lg font-semibold">{inr.format(total)}</span>
-              </div>
+                {customerId ? (
+                  gstTotals.incomplete ? (
+                    <p className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn">
+                      Can't compute GST for this order yet — set a state on this customer and on
+                      your business's GST profile (Account settings) so CGST/SGST vs. IGST can be
+                      determined.
+                    </p>
+                  ) : (
+                    <div className="space-y-1 rounded-lg bg-muted/50 px-4 py-3 text-sm">
+                      <div className="flex items-center justify-between text-muted-foreground">
+                        <span>
+                          {gstTotals.igstAmount > 0
+                            ? "IGST (interstate)"
+                            : "CGST + SGST (intrastate)"}
+                        </span>
+                        <span>{inr.format(gstTotals.totalTax)}</span>
+                      </div>
+                      {gstTotals.igstAmount === 0 ? (
+                        <div className="flex items-center justify-between text-xs text-muted-foreground">
+                          <span>
+                            CGST {inr.format(gstTotals.cgstAmount)} + SGST{" "}
+                            {inr.format(gstTotals.sgstAmount)}
+                          </span>
+                        </div>
+                      ) : null}
+                    </div>
+                  )
+                ) : null}
 
-              <DialogFooter>
-                <Button type="submit" disabled={saveSo.isPending || !customerId || !warehouseId}>
-                  {saveSo.isPending ? "Saving…" : editingId ? "Save changes" : "Create sales order"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="so-discount">Discount</Label>
+                    <Input
+                      id="so-discount"
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={discountAmount}
+                      onChange={(e) => setDiscountAmount(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="so-shipping">Shipping</Label>
+                    <Input
+                      id="so-shipping"
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={shippingAmount}
+                      onChange={(e) => setShippingAmount(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between rounded-lg bg-muted/50 px-4 py-3 text-sm">
+                  <span className="text-muted-foreground">Total</span>
+                  <span className="font-display text-lg font-semibold">{inr.format(total)}</span>
+                </div>
+
+                <DialogFooter>
+                  <Button type="submit" disabled={saveSo.isPending || !customerId || !warehouseId}>
+                    {saveSo.isPending
+                      ? "Saving…"
+                      : editingId
+                        ? "Save changes"
+                        : "Create sales order"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        )
       }
     >
       {salesOrders.isLoading ? (
@@ -794,7 +817,7 @@ function SalesOrders() {
                         <Button variant="outline" size="sm" onClick={() => setDetailId(so.id)}>
                           View
                         </Button>
-                        {primaryAction(so.status) ? (
+                        {primaryAction(so.status) && canRunPrimaryAction(so.status) ? (
                           <Button
                             size="sm"
                             disabled={actionsPending}
@@ -841,7 +864,7 @@ function SalesOrders() {
                   <Button variant="outline" size="sm" onClick={() => setDetailId(so.id)}>
                     View
                   </Button>
-                  {primaryAction(so.status) ? (
+                  {primaryAction(so.status) && canRunPrimaryAction(so.status) ? (
                     <Button
                       size="sm"
                       disabled={actionsPending}
@@ -1001,7 +1024,7 @@ function SalesOrders() {
               </div>
 
               <div className="flex flex-wrap justify-end gap-2">
-                {selectedSo.status === "draft" ? (
+                {selectedSo.status === "draft" && canEdit ? (
                   <Button
                     variant="outline"
                     onClick={() => {
@@ -1012,7 +1035,7 @@ function SalesOrders() {
                     Edit
                   </Button>
                 ) : null}
-                {CANCELLABLE_STATUSES.has(selectedSo.status) ? (
+                {CANCELLABLE_STATUSES.has(selectedSo.status) && canCancel ? (
                   <Button
                     variant="outline"
                     className="text-destructive hover:text-destructive"
@@ -1023,7 +1046,7 @@ function SalesOrders() {
                     Cancel order
                   </Button>
                 ) : null}
-                {primaryAction(selectedSo.status) ? (
+                {primaryAction(selectedSo.status) && canRunPrimaryAction(selectedSo.status) ? (
                   <Button
                     size="lg"
                     disabled={actionsPending}

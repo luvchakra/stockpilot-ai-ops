@@ -35,6 +35,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { INDIAN_STATES, isValidGstin } from "@/lib/gst";
+import { usePermissions } from "@/hooks/usePermissions";
 
 export const Route = createFileRoute("/_authenticated/suppliers")({
   head: () => ({
@@ -64,6 +65,8 @@ const emptyForm = {
 
 function Suppliers() {
   const { org } = useCurrentOrg();
+  const { can } = usePermissions();
+  const canEdit = can("suppliers.edit");
   const orgId = org?.id;
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -157,175 +160,179 @@ function Suppliers() {
       title="Suppliers"
       description="Vendors and procurement contacts."
       actions={
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button
-              size="sm"
-              onClick={() => {
-                setForm(emptyForm);
-                setEditingId(null);
-              }}
-            >
-              <Plus className="size-4" />
-              New supplier
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{editingId ? "Edit supplier" : "New supplier"}</DialogTitle>
-            </DialogHeader>
-            <form
-              className="space-y-4"
-              onSubmit={(e) => {
-                e.preventDefault();
-                saveSupplier.mutate();
-              }}
-            >
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="sup-name">Name</Label>
-                  <Input
-                    id="sup-name"
-                    required
-                    value={form.name}
-                    onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                    placeholder="Acme Traders"
-                  />
+        canEdit && (
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button
+                size="sm"
+                onClick={() => {
+                  setForm(emptyForm);
+                  setEditingId(null);
+                }}
+              >
+                <Plus className="size-4" />
+                New supplier
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{editingId ? "Edit supplier" : "New supplier"}</DialogTitle>
+              </DialogHeader>
+              <form
+                className="space-y-4"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  saveSupplier.mutate();
+                }}
+              >
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="sup-name">Name</Label>
+                    <Input
+                      id="sup-name"
+                      required
+                      value={form.name}
+                      onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                      placeholder="Acme Traders"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="sup-code">Code</Label>
+                    <Input
+                      id="sup-code"
+                      value={form.code}
+                      onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="sup-contact">Contact person</Label>
+                    <Input
+                      id="sup-contact"
+                      value={form.contact_person}
+                      onChange={(e) => setForm((f) => ({ ...f, contact_person: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="sup-phone">Phone</Label>
+                    <Input
+                      id="sup-phone"
+                      value={form.phone}
+                      onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="sup-email">Email</Label>
+                    <Input
+                      id="sup-email"
+                      type="email"
+                      value={form.email}
+                      onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="sup-gst">GSTIN</Label>
+                    <Input
+                      id="sup-gst"
+                      value={form.gst_number}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, gst_number: e.target.value.toUpperCase() }))
+                      }
+                      placeholder="22AAAAA0000A1Z5"
+                      maxLength={15}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="sup-address">Address</Label>
+                    <Input
+                      id="sup-address"
+                      value={form.address}
+                      onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="sup-city">City</Label>
+                    <Input
+                      id="sup-city"
+                      value={form.city}
+                      onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="sup-state">State (for GST place of supply)</Label>
+                    <Select
+                      value={form.state}
+                      onValueChange={(v) => setForm((f) => ({ ...f, state: v }))}
+                    >
+                      <SelectTrigger id="sup-state">
+                        <SelectValue placeholder="Select state" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {INDIAN_STATES.map((s) => (
+                          <SelectItem key={s.code} value={s.name}>
+                            {s.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="sup-terms">Payment terms</Label>
+                    <Input
+                      id="sup-terms"
+                      value={form.payment_terms}
+                      onChange={(e) => setForm((f) => ({ ...f, payment_terms: e.target.value }))}
+                      placeholder="Net 30"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="sup-lead">Lead time (days)</Label>
+                    <Input
+                      id="sup-lead"
+                      type="number"
+                      min={0}
+                      value={form.lead_time_days}
+                      onChange={(e) => setForm((f) => ({ ...f, lead_time_days: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="sup-moq">Minimum order quantity</Label>
+                    <Input
+                      id="sup-moq"
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={form.min_order_quantity}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, min_order_quantity: e.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="sup-rating">Rating (0-5)</Label>
+                    <Input
+                      id="sup-rating"
+                      type="number"
+                      min={0}
+                      max={5}
+                      step="0.5"
+                      value={form.rating}
+                      onChange={(e) => setForm((f) => ({ ...f, rating: e.target.value }))}
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="sup-code">Code</Label>
-                  <Input
-                    id="sup-code"
-                    value={form.code}
-                    onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="sup-contact">Contact person</Label>
-                  <Input
-                    id="sup-contact"
-                    value={form.contact_person}
-                    onChange={(e) => setForm((f) => ({ ...f, contact_person: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="sup-phone">Phone</Label>
-                  <Input
-                    id="sup-phone"
-                    value={form.phone}
-                    onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="sup-email">Email</Label>
-                  <Input
-                    id="sup-email"
-                    type="email"
-                    value={form.email}
-                    onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="sup-gst">GSTIN</Label>
-                  <Input
-                    id="sup-gst"
-                    value={form.gst_number}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, gst_number: e.target.value.toUpperCase() }))
-                    }
-                    placeholder="22AAAAA0000A1Z5"
-                    maxLength={15}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="sup-address">Address</Label>
-                  <Input
-                    id="sup-address"
-                    value={form.address}
-                    onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="sup-city">City</Label>
-                  <Input
-                    id="sup-city"
-                    value={form.city}
-                    onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="sup-state">State (for GST place of supply)</Label>
-                  <Select
-                    value={form.state}
-                    onValueChange={(v) => setForm((f) => ({ ...f, state: v }))}
-                  >
-                    <SelectTrigger id="sup-state">
-                      <SelectValue placeholder="Select state" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {INDIAN_STATES.map((s) => (
-                        <SelectItem key={s.code} value={s.name}>
-                          {s.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="sup-terms">Payment terms</Label>
-                  <Input
-                    id="sup-terms"
-                    value={form.payment_terms}
-                    onChange={(e) => setForm((f) => ({ ...f, payment_terms: e.target.value }))}
-                    placeholder="Net 30"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="sup-lead">Lead time (days)</Label>
-                  <Input
-                    id="sup-lead"
-                    type="number"
-                    min={0}
-                    value={form.lead_time_days}
-                    onChange={(e) => setForm((f) => ({ ...f, lead_time_days: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="sup-moq">Minimum order quantity</Label>
-                  <Input
-                    id="sup-moq"
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={form.min_order_quantity}
-                    onChange={(e) => setForm((f) => ({ ...f, min_order_quantity: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="sup-rating">Rating (0-5)</Label>
-                  <Input
-                    id="sup-rating"
-                    type="number"
-                    min={0}
-                    max={5}
-                    step="0.5"
-                    value={form.rating}
-                    onChange={(e) => setForm((f) => ({ ...f, rating: e.target.value }))}
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button type="submit" disabled={saveSupplier.isPending}>
-                  {saveSupplier.isPending
-                    ? "Saving…"
-                    : editingId
-                      ? "Save changes"
-                      : "Create supplier"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+                <DialogFooter>
+                  <Button type="submit" disabled={saveSupplier.isPending}>
+                    {saveSupplier.isPending
+                      ? "Saving…"
+                      : editingId
+                        ? "Save changes"
+                        : "Create supplier"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        )
       }
     >
       {suppliers.isLoading ? (
@@ -350,7 +357,7 @@ function Suppliers() {
                   <TableHead>Lead time</TableHead>
                   <TableHead>Rating</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  {canEdit && <TableHead className="text-right">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -375,21 +382,23 @@ function Suppliers() {
                         {sup.is_active ? "Active" : "Inactive"}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" onClick={() => startEdit(sup)}>
-                        <Pencil className="size-4" />
-                        Edit
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          toggleActive.mutate({ id: sup.id, is_active: !sup.is_active })
-                        }
-                      >
-                        {sup.is_active ? "Deactivate" : "Activate"}
-                      </Button>
-                    </TableCell>
+                    {canEdit && (
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="sm" onClick={() => startEdit(sup)}>
+                          <Pencil className="size-4" />
+                          Edit
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() =>
+                            toggleActive.mutate({ id: sup.id, is_active: !sup.is_active })
+                          }
+                        >
+                          {sup.is_active ? "Deactivate" : "Activate"}
+                        </Button>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>
@@ -429,19 +438,21 @@ function Suppliers() {
                     )}
                   </div>
                 </div>
-                <div className="flex justify-end gap-2 border-t border-border pt-3">
-                  <Button variant="ghost" size="sm" onClick={() => startEdit(sup)}>
-                    <Pencil className="size-4" />
-                    Edit
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => toggleActive.mutate({ id: sup.id, is_active: !sup.is_active })}
-                  >
-                    {sup.is_active ? "Deactivate" : "Activate"}
-                  </Button>
-                </div>
+                {canEdit && (
+                  <div className="flex justify-end gap-2 border-t border-border pt-3">
+                    <Button variant="ghost" size="sm" onClick={() => startEdit(sup)}>
+                      <Pencil className="size-4" />
+                      Edit
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => toggleActive.mutate({ id: sup.id, is_active: !sup.is_active })}
+                    >
+                      {sup.is_active ? "Deactivate" : "Activate"}
+                    </Button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
