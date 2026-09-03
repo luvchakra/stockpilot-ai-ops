@@ -53,7 +53,7 @@ async function fetchHtml(path) {
 
 console.log(`Testing against ${BASE_URL}\n`);
 
-console.log("Landing page (\"/\")");
+console.log('Landing page ("/")');
 {
   const { status, html } = await fetchHtml("/");
   check("page loads (200)", status === 200, `got status ${status}`);
@@ -63,14 +63,14 @@ console.log("Landing page (\"/\")");
   const startFreeIsButton = /<button[^>]*>\s*Start Free/.test(html);
 
   check(
-    "\"Start Free\" renders as a link to /auth?mode=signup (not a dead button)",
+    '"Start Free" renders as a link to /auth?mode=signup (not a dead button)',
     hasSignupLink,
-    "no <a href=\"/auth?mode=signup\"> found in the page HTML",
+    'no <a href="/auth?mode=signup"> found in the page HTML',
   );
   check(
-    "\"Log in\" renders as a link to /auth?mode=signin",
+    '"Log in" renders as a link to /auth?mode=signin',
     hasSigninLink,
-    "no <a href=\"/auth?mode=signin\"> found in the page HTML",
+    'no <a href="/auth?mode=signin"> found in the page HTML',
   );
   check(
     "no leftover <button>Start Free</button> with no href",
@@ -86,7 +86,7 @@ console.log("Landing page (\"/\")");
   );
 }
 
-console.log("\nAuth page (\"/auth?mode=signup\")");
+console.log('\nAuth page ("/auth?mode=signup")');
 {
   const { status, html } = await fetchHtml("/auth?mode=signup");
   check("page loads (200)", status === 200, `got status ${status}`);
@@ -95,12 +95,13 @@ console.log("\nAuth page (\"/auth?mode=signup\")");
   const signupActive = new RegExp(
     'value="signup"[^>]*data-state="active"|data-state="active"[^>]*value="signup"',
   ).test(html);
-  const signupTriggerActive = /id="[^"]*signup[^"]*"[^>]*data-state="active"/.test(html) || signupActive;
+  const signupTriggerActive =
+    /id="[^"]*signup[^"]*"[^>]*data-state="active"/.test(html) || signupActive;
 
   checkSoft(
-    "\"Create account\" tab is the active tab when landing via Start Free",
+    '"Create account" tab is the active tab when landing via Start Free',
     signupTriggerActive,
-    "could not find an active tab trigger for \"signup\" in the SSR output. " +
+    'could not find an active tab trigger for "signup" in the SSR output. ' +
       "This is a heuristic against Radix Tabs' internal markup, not a " +
       "reliable signal either way — verify by hand in a browser instead.",
   );

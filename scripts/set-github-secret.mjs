@@ -68,11 +68,15 @@ async function main() {
   const token = process.env.GITHUB_TOKEN;
 
   if (!repo || !name) {
-    console.error("Usage: GITHUB_TOKEN=... node scripts/set-github-secret.mjs --repo owner/repo --name SECRET_NAME");
+    console.error(
+      "Usage: GITHUB_TOKEN=... node scripts/set-github-secret.mjs --repo owner/repo --name SECRET_NAME",
+    );
     process.exit(1);
   }
   if (!token) {
-    console.error("Set GITHUB_TOKEN to a personal access token with write access to Actions secrets.");
+    console.error(
+      "Set GITHUB_TOKEN to a personal access token with write access to Actions secrets.",
+    );
     process.exit(1);
   }
 
