@@ -1863,6 +1863,274 @@ async function main() {
     );
   }
 
+  // --- N. e-Invoicing (SP-8) -------------------------------------------------
+  console.log("\nN. e-Invoicing: generate/cancel permission gating, credential secrecy, isolation");
+  {
+    const salesManager = await makeUser("einvsales");
+    const accountant = await makeUser("einvaccountant");
+    const viewer = await makeUser("einvviewer");
+
+    await rest("POST", "organization_members", {
+      token: owner.token,
+      body: { org_id: orgId, user_id: salesManager.id, role: "sales_manager" },
+    });
+    await rest("POST", "organization_members", {
+      token: owner.token,
+      body: { org_id: orgId, user_id: accountant.id, role: "accountant" },
+    });
+    await rest("POST", "organization_members", {
+      token: owner.token,
+      body: { org_id: orgId, user_id: viewer.id, role: "viewer" },
+    });
+
+    // Self-contained order -> confirm -> ship -> invoice lifecycle so this
+    // section never depends on state left behind by an earlier one.
+    const customer = await rest("POST", "customers", {
+      token: admin.token,
+      body: { org_id: orgId, name: `N Customer ${RUN_ID}`, state: "Maharashtra" },
+    });
+    const customerId = customer.data?.[0]?.id;
+    const warehouse = await rest("POST", "warehouses", {
+      token: admin.token,
+      body: { org_id: orgId, name: "e-Invoice Test WH", code: `EINV-WH-${RUN_ID}` },
+    });
+    const warehouseId = warehouse.data?.[0]?.id;
+    const product = await rest("POST", "products", {
+      token: admin.token,
+      body: {
+        org_id: orgId,
+        sku: `EINV-SKU-${RUN_ID}`,
+        name: "e-Invoice test product",
+        hsn_code: "9999",
+        selling_price: 100,
+        tax_rate: 18,
+      },
+    });
+    const productId = product.data?.[0]?.id;
+    await rest("POST", "stock_movements", {
+      token: admin.token,
+      body: {
+        org_id: orgId,
+        product_id: productId,
+        warehouse_id: warehouseId,
+        type: "inbound",
+        quantity: 10,
+      },
+    });
+
+    const soNumber = await rpc("next_sales_order_number", {
+      token: admin.token,
+      body: { _org_id: orgId },
+    });
+    const so = await rest("POST", "sales_orders", {
+      token: admin.token,
+      body: {
+        org_id: orgId,
+        customer_id: customerId,
+        warehouse_id: warehouseId,
+        so_number: soNumber.data,
+        subtotal: 500,
+        total_amount: 590,
+      },
+    });
+    const soId = so.data?.[0]?.id;
+    await rest("POST", "sales_order_items", {
+      token: admin.token,
+      body: {
+        org_id: orgId,
+        sales_order_id: soId,
+        product_id: productId,
+        quantity: 5,
+        unit_price: 100,
+        tax_rate: 18,
+      },
+    });
+    await rpc("confirm_sales_order", { token: admin.token, body: { _so_id: soId } });
+    await rpc("ship_sales_order", { token: admin.token, body: { _so_id: soId } });
+    const genInvoice = await rpc("generate_sales_invoice", {
+      token: admin.token,
+      body: { _so_id: soId },
+    });
+    check(
+      "fixture: admin can generate the sales invoice this section tests against",
+      genInvoice.ok,
+      `status ${genInvoice.status}, body ${JSON.stringify(genInvoice.data)}`,
+    );
+    const invoiceId = genInvoice.data;
+
+    const einvoicePayload = () => ({
+      org_id: orgId,
+      invoice_id: invoiceId,
+      irn: `IRN${RUN_ID}`,
+      ack_no: `ACK${RUN_ID}`,
+      ack_date: new Date().toISOString(),
+      qr_code: "test-qr-payload",
+      request_payload: {},
+      response_payload: {},
+    });
+
+    // A role without einvoices.generate (viewer) cannot record a generated IRN.
+    const viewerGenerate = await rest("POST", "einvoices", {
+      token: viewer.token,
+      body: einvoicePayload(),
+    });
+    check(
+      "viewer cannot record an e-Invoice (lacks einvoices.generate)",
+      !viewerGenerate.ok,
+      `status ${viewerGenerate.status}, body ${JSON.stringify(viewerGenerate.data)}`,
+    );
+
+    // sales_manager (has einvoices.generate) can.
+    const smGenerate = await rest("POST", "einvoices", {
+      token: salesManager.token,
+      body: einvoicePayload(),
+    });
+    check(
+      "sales_manager can record a generated e-Invoice",
+      smGenerate.ok,
+      `status ${smGenerate.status}, body ${JSON.stringify(smGenerate.data)}`,
+    );
+    const einvoiceId = smGenerate.data?.[0]?.id;
+
+    // Only one ACTIVE IRN per invoice at a time.
+    const duplicateGenerate = await rest("POST", "einvoices", {
+      token: salesManager.token,
+      body: einvoicePayload(),
+    });
+    check(
+      "a second active e-Invoice for the same sales invoice is rejected",
+      !duplicateGenerate.ok,
+      `status ${duplicateGenerate.status}, body ${JSON.stringify(duplicateGenerate.data)}`,
+    );
+
+    // sales_manager has einvoices.generate but NOT einvoices.cancel.
+    const smCancel = await rest("PATCH", "einvoices", {
+      token: salesManager.token,
+      query: `?id=eq.${einvoiceId}`,
+      body: { status: "cancelled", cancelled_at: new Date().toISOString() },
+    });
+    const smCancelled = smCancel.ok && smCancel.data?.length > 0;
+    check(
+      "sales_manager cannot cancel an e-Invoice (lacks einvoices.cancel)",
+      !smCancelled,
+      `status ${smCancel.status}, body ${JSON.stringify(smCancel.data)}`,
+    );
+
+    // accountant (has einvoices.cancel) can.
+    const acctCancel = await rest("PATCH", "einvoices", {
+      token: accountant.token,
+      query: `?id=eq.${einvoiceId}`,
+      body: { status: "cancelled", cancelled_at: new Date().toISOString() },
+    });
+    check(
+      "accountant can cancel an e-Invoice",
+      acctCancel.ok && acctCancel.data?.length > 0,
+      `status ${acctCancel.status}, body ${JSON.stringify(acctCancel.data)}`,
+    );
+
+    // Cancelling frees the invoice up for a fresh generation.
+    const regenerate = await rest("POST", "einvoices", {
+      token: salesManager.token,
+      body: einvoicePayload(),
+    });
+    check(
+      "a new e-Invoice can be generated after the prior one is cancelled",
+      regenerate.ok,
+      `status ${regenerate.status}, body ${JSON.stringify(regenerate.data)}`,
+    );
+
+    // No DELETE policy at all -- an IRN is a permanent legal record.
+    const deleteAttempt = await rest("DELETE", "einvoices", {
+      token: admin.token,
+      query: `?id=eq.${einvoiceId}`,
+    });
+    const wasDeleted = deleteAttempt.ok && deleteAttempt.data?.length > 0;
+    check(
+      "an e-Invoice row cannot be deleted via the client API",
+      !wasDeleted,
+      `status ${deleteAttempt.status}, body ${JSON.stringify(deleteAttempt.data)}`,
+    );
+
+    // Cross-tenant isolation.
+    const outsiderRead = await rest("GET", "einvoices", {
+      token: outsider.token,
+      query: `?org_id=eq.${orgId}`,
+    });
+    check(
+      "a non-member cannot read another org's e-Invoices",
+      outsiderRead.ok && Array.isArray(outsiderRead.data) && outsiderRead.data.length === 0,
+      `body ${JSON.stringify(outsiderRead.data)}`,
+    );
+
+    // --- Credentials: no client SELECT path for anyone, writes gated by settings.manage ---
+    const credInsert = await rest("POST", "einvoice_credentials", {
+      token: admin.token,
+      body: {
+        org_id: orgId,
+        gsp_provider: "TestGSP",
+        auth_url: "https://example.test/auth",
+        generate_url: "https://example.test/generate",
+        cancel_url: "https://example.test/cancel",
+        gsp_username: "test-user",
+        gsp_password: "super-secret",
+      },
+    });
+    check(
+      "admin (settings.manage) can save e-Invoicing credentials",
+      credInsert.ok,
+      `status ${credInsert.status}, body ${JSON.stringify(credInsert.data)}`,
+    );
+
+    const acctCredUpdate = await rest("PATCH", "einvoice_credentials", {
+      token: accountant.token,
+      query: `?org_id=eq.${orgId}`,
+      body: { gsp_provider: "Hijacked" },
+    });
+    const acctTampered = acctCredUpdate.ok && acctCredUpdate.data?.length > 0;
+    check(
+      "accountant (lacks settings.manage) cannot update e-Invoicing credentials",
+      !acctTampered,
+      `status ${acctCredUpdate.status}, body ${JSON.stringify(acctCredUpdate.data)}`,
+    );
+
+    const adminCredRead = await rest("GET", "einvoice_credentials", {
+      token: admin.token,
+      query: `?org_id=eq.${orgId}`,
+    });
+    check(
+      "even an org admin cannot SELECT e-Invoicing credentials directly (service_role only)",
+      adminCredRead.ok && Array.isArray(adminCredRead.data) && adminCredRead.data.length === 0,
+      `status ${adminCredRead.status}, body ${JSON.stringify(adminCredRead.data)}`,
+    );
+
+    const statusRpc = await rpc("einvoice_credentials_status", {
+      token: viewer.token,
+      body: { _org: orgId },
+    });
+    const statusRow = statusRpc.data?.[0];
+    check(
+      "einvoice_credentials_status() exposes only non-secret metadata to org members",
+      statusRpc.ok &&
+        statusRow?.gsp_provider === "TestGSP" &&
+        !("gsp_password" in (statusRow ?? {})) &&
+        !("gsp_username" in (statusRow ?? {})) &&
+        !("client_secret" in (statusRow ?? {})),
+      `body ${JSON.stringify(statusRpc.data)}`,
+    );
+
+    const outsiderStatusRpc2 = await rpc("einvoice_credentials_status", {
+      token: outsider.token,
+      body: { _org: orgId },
+    });
+    check(
+      "a non-member gets no rows from einvoice_credentials_status()",
+      outsiderStatusRpc2.ok &&
+        Array.isArray(outsiderStatusRpc2.data) &&
+        outsiderStatusRpc2.data.length === 0,
+      `body ${JSON.stringify(outsiderStatusRpc2.data)}`,
+    );
+  }
+
   console.log(`\n${passed} passed, ${failed} failed`);
   return failed;
 }

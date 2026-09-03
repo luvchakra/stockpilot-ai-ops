@@ -39,6 +39,7 @@ import {
 import { inr, formatDate } from "@/lib/format";
 import { usePermissions } from "@/hooks/usePermissions";
 import { EwayBillPanel } from "@/components/eway-bill-panel";
+import { EinvoicePanel, EinvoiceQrBlock } from "@/components/einvoice-panel";
 
 export const Route = createFileRoute("/_authenticated/sales-invoices")({
   head: () => ({
@@ -572,7 +573,18 @@ function SalesInvoices() {
                     </div>
                   </div>
                 ) : null}
+
+                {orgId ? <EinvoiceQrBlock orgId={orgId} invoiceId={selectedInvoice.id} /> : null}
               </div>
+
+              {orgId ? (
+                <EinvoicePanel
+                  orgId={orgId}
+                  invoiceId={selectedInvoice.id}
+                  canGenerate={can("einvoices.generate")}
+                  canCancel={can("einvoices.cancel")}
+                />
+              ) : null}
 
               {orgId ? (
                 <EwayBillPanel
