@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/table";
 import { inr, formatDate } from "@/lib/format";
 import { usePermissions } from "@/hooks/usePermissions";
+import { EwayBillPanel } from "@/components/eway-bill-panel";
 
 export const Route = createFileRoute("/_authenticated/sales-invoices")({
   head: () => ({
@@ -572,6 +573,17 @@ function SalesInvoices() {
                   </div>
                 ) : null}
               </div>
+
+              {orgId ? (
+                <EwayBillPanel
+                  orgId={orgId}
+                  sourceType="sales_invoice"
+                  sourceId={selectedInvoice.id}
+                  totalValue={Number(selectedInvoice.total_amount)}
+                  canGenerate={can("eway_bills.generate")}
+                  canCancel={can("eway_bills.cancel")}
+                />
+              ) : null}
 
               <div className="no-print flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
                 {canEdit ? (

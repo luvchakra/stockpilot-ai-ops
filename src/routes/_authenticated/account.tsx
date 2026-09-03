@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { INDIAN_STATES, isValidGstin } from "@/lib/gst";
 import { usePermissions } from "@/hooks/usePermissions";
+import { formatDateTime } from "@/lib/format";
 
 const CURRENCIES = [
   { value: "INR", label: "INR — Indian Rupee" },
@@ -69,6 +70,16 @@ function Account() {
   const [orgGstType, setOrgGstType] = useState("regular");
   const [orgBusy, setOrgBusy] = useState(false);
 
+  const [ewbProvider, setEwbProvider] = useState("");
+  const [ewbAuthUrl, setEwbAuthUrl] = useState("");
+  const [ewbGenerateUrl, setEwbGenerateUrl] = useState("");
+  const [ewbCancelUrl, setEwbCancelUrl] = useState("");
+  const [ewbUsername, setEwbUsername] = useState("");
+  const [ewbPassword, setEwbPassword] = useState("");
+  const [ewbClientId, setEwbClientId] = useState("");
+  const [ewbClientSecret, setEwbClientSecret] = useState("");
+  const [ewbBusy, setEwbBusy] = useState(false);
+
   const profile = useQuery({
     queryKey: ["profile", user?.id],
     enabled: !!user?.id,
@@ -114,6 +125,53 @@ function Account() {
 
   const { can } = usePermissions();
   const canEditOrg = can("settings.manage");
+
+  const ewbStatus = useQuery({
+    queryKey: ["eway-bill-credentials-status", org?.id],
+    enabled: !!org?.id && canEditOrg,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("eway_bill_credentials_status", {
+        _org: org!.id,
+      });
+      if (error) throw error;
+      return data?.[0] ?? null;
+    },
+  });
+
+  useEffect(() => {
+    if (ewbStatus.data) setEwbProvider(ewbStatus.data.gsp_provider);
+  }, [ewbStatus.data]);
+
+  const saveEwayBillCredentials = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!org) return;
+    setEwbBusy(true);
+    const { error } = await supabase.from("eway_bill_credentials").upsert({
+      org_id: org.id,
+      gsp_provider: ewbProvider,
+      auth_url: ewbAuthUrl,
+      generate_url: ewbGenerateUrl,
+      cancel_url: ewbCancelUrl,
+      gsp_username: ewbUsername || null,
+      gsp_password: ewbPassword || null,
+      client_id: ewbClientId || null,
+      client_secret: ewbClientSecret || null,
+    });
+    setEwbBusy(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success("e-Way Bill credentials saved");
+    setEwbUsername("");
+    setEwbPassword("");
+    setEwbClientId("");
+    setEwbClientSecret("");
+    setEwbAuthUrl("");
+    setEwbGenerateUrl("");
+    setEwbCancelUrl("");
+    queryClient.invalidateQueries({ queryKey: ["eway-bill-credentials-status", org.id] });
+  };
 
   const saveOrg = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -332,6 +390,121 @@ function Account() {
                   </p>
                 </div>
               )}
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {org && canEditOrg ? (
+          <Card className="max-w-lg">
+            <CardHeader>
+              <CardTitle>e-Way Bill (GST compliance)</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-xs text-muted-foreground">
+                e-Way Bill generation goes through your GST Suvidha Provider (GSP) — e.g. ClearTax,
+                MasterGST, Vayana, Whitebooks. Enter the base URLs and credentials your GSP issued
+                you. These are stored securely and are never shown again once saved — to change
+                them, re-enter and save fresh values.
+              </p>
+              {ewbStatus.data ? (
+                <p className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs">
+                  Configured: <span className="font-medium">{ewbStatus.data.gsp_provider}</span> ·
+                  last updated {formatDateTime(ewbStatus.data.updated_at)}
+                </p>
+              ) : (
+                <p className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn">
+                  No e-Way Bill provider configured yet — e-Way Bill generation will be unavailable
+                  on sales orders, invoices, and purchase orders until this is set up.
+                </p>
+              )}
+              <form onSubmit={saveEwayBillCredentials} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="ewb-provider">GSP provider name</Label>
+                  <Input
+                    id="ewb-provider"
+                    required
+                    value={ewbProvider}
+                    onChange={(e) => setEwbProvider(e.target.value)}
+                    placeholder="e.g. ClearTax, MasterGST"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="ewb-auth-url">Auth URL</Label>
+                  <Input
+                    id="ewb-auth-url"
+                    type="url"
+                    required
+                    value={ewbAuthUrl}
+                    onChange={(e) => setEwbAuthUrl(e.target.value)}
+                    placeholder="https://…/authenticate"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="ewb-generate-url">Generate URL</Label>
+                  <Input
+                    id="ewb-generate-url"
+                    type="url"
+                    required
+                    value={ewbGenerateUrl}
+                    onChange={(e) => setEwbGenerateUrl(e.target.value)}
+                    placeholder="https://…/ewayapi"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="ewb-cancel-url">Cancel URL</Label>
+                  <Input
+                    id="ewb-cancel-url"
+                    type="url"
+                    required
+                    value={ewbCancelUrl}
+                    onChange={(e) => setEwbCancelUrl(e.target.value)}
+                    placeholder="https://…/ewayapi/cancel"
+                  />
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="ewb-username">GSP username</Label>
+                    <Input
+                      id="ewb-username"
+                      value={ewbUsername}
+                      onChange={(e) => setEwbUsername(e.target.value)}
+                      autoComplete="off"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="ewb-password">GSP password</Label>
+                    <Input
+                      id="ewb-password"
+                      type="password"
+                      value={ewbPassword}
+                      onChange={(e) => setEwbPassword(e.target.value)}
+                      autoComplete="new-password"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="ewb-client-id">Client ID</Label>
+                    <Input
+                      id="ewb-client-id"
+                      value={ewbClientId}
+                      onChange={(e) => setEwbClientId(e.target.value)}
+                      autoComplete="off"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="ewb-client-secret">Client secret</Label>
+                    <Input
+                      id="ewb-client-secret"
+                      type="password"
+                      value={ewbClientSecret}
+                      onChange={(e) => setEwbClientSecret(e.target.value)}
+                      autoComplete="new-password"
+                    />
+                  </div>
+                </div>
+                <Button type="submit" disabled={ewbBusy}>
+                  {ewbBusy ? "Saving…" : ewbStatus.data ? "Update credentials" : "Save credentials"}
+                </Button>
+              </form>
             </CardContent>
           </Card>
         ) : null}

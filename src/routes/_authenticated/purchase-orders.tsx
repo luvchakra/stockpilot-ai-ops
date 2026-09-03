@@ -39,6 +39,7 @@ import { inr, formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { GST_RATE_SLABS, aggregateGst, computeLineGst, resolveStateCode } from "@/lib/gst";
 import { usePermissions } from "@/hooks/usePermissions";
+import { EwayBillPanel } from "@/components/eway-bill-panel";
 
 export const Route = createFileRoute("/_authenticated/purchase-orders")({
   head: () => ({
@@ -1099,6 +1100,17 @@ function PurchaseOrders() {
                   <span>{inr.format(Number(selectedPo.total_amount))}</span>
                 </div>
               </div>
+
+              {orgId ? (
+                <EwayBillPanel
+                  orgId={orgId}
+                  sourceType="purchase_order"
+                  sourceId={selectedPo.id}
+                  totalValue={Number(selectedPo.total_amount)}
+                  canGenerate={can("eway_bills.generate")}
+                  canCancel={can("eway_bills.cancel")}
+                />
+              ) : null}
 
               <div className="flex flex-wrap justify-end gap-2">
                 {selectedPo.status === "draft" && canEdit ? (

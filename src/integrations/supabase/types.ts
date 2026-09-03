@@ -370,6 +370,133 @@ export type Database = {
           },
         ]
       }
+      eway_bill_credentials: {
+        Row: {
+          auth_url: string
+          cancel_url: string
+          client_id: string | null
+          client_secret: string | null
+          created_at: string
+          generate_url: string
+          gsp_password: string | null
+          gsp_provider: string
+          gsp_username: string | null
+          org_id: string
+          updated_at: string
+          updated_by: string
+        }
+        Insert: {
+          auth_url: string
+          cancel_url: string
+          client_id?: string | null
+          client_secret?: string | null
+          created_at?: string
+          generate_url: string
+          gsp_password?: string | null
+          gsp_provider: string
+          gsp_username?: string | null
+          org_id: string
+          updated_at?: string
+          updated_by?: string
+        }
+        Update: {
+          auth_url?: string
+          cancel_url?: string
+          client_id?: string | null
+          client_secret?: string | null
+          created_at?: string
+          generate_url?: string
+          gsp_password?: string | null
+          gsp_provider?: string
+          gsp_username?: string | null
+          org_id?: string
+          updated_at?: string
+          updated_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eway_bill_credentials_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      eway_bills: {
+        Row: {
+          cancel_reason: string | null
+          cancelled_at: string | null
+          created_at: string
+          created_by: string
+          distance_km: number | null
+          ewb_date: string
+          ewb_number: string
+          id: string
+          org_id: string
+          request_payload: Json
+          response_payload: Json
+          source_id: string
+          source_type: Database["public"]["Enums"]["eway_bill_source_type"]
+          status: Database["public"]["Enums"]["eway_bill_status"]
+          transport_mode: string
+          transporter_id: string | null
+          transporter_name: string | null
+          valid_until: string
+          vehicle_number: string | null
+        }
+        Insert: {
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          created_at?: string
+          created_by?: string
+          distance_km?: number | null
+          ewb_date: string
+          ewb_number: string
+          id?: string
+          org_id: string
+          request_payload: Json
+          response_payload: Json
+          source_id: string
+          source_type: Database["public"]["Enums"]["eway_bill_source_type"]
+          status?: Database["public"]["Enums"]["eway_bill_status"]
+          transport_mode: string
+          transporter_id?: string | null
+          transporter_name?: string | null
+          valid_until: string
+          vehicle_number?: string | null
+        }
+        Update: {
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          created_at?: string
+          created_by?: string
+          distance_km?: number | null
+          ewb_date?: string
+          ewb_number?: string
+          id?: string
+          org_id?: string
+          request_payload?: Json
+          response_payload?: Json
+          source_id?: string
+          source_type?: Database["public"]["Enums"]["eway_bill_source_type"]
+          status?: Database["public"]["Enums"]["eway_bill_status"]
+          transport_mode?: string
+          transporter_id?: string | null
+          transporter_name?: string | null
+          valid_until?: string
+          vehicle_number?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eway_bills_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organization_members: {
         Row: {
           created_at: string
@@ -1601,6 +1728,16 @@ export type Database = {
         }
         Returns: string
       }
+      eway_bill_credentials_status: {
+        Args: { _org: string }
+        Returns: {
+          auth_url: string
+          cancel_url: string
+          generate_url: string
+          gsp_provider: string
+          updated_at: string
+        }[]
+      }
       generate_sales_invoice: { Args: { _so_id: string }; Returns: string }
       has_org_role: {
         Args: {
@@ -1623,6 +1760,8 @@ export type Database = {
     Enums: {
       alert_severity: "info" | "warning" | "critical"
       alert_status: "open" | "acknowledged" | "resolved" | "dismissed"
+      eway_bill_source_type: "sales_order" | "sales_invoice" | "purchase_order"
+      eway_bill_status: "generated" | "cancelled" | "expired"
       invoice_payment_status: "unpaid" | "partial" | "paid"
       movement_type:
         | "inbound"
@@ -1793,6 +1932,8 @@ export const Constants = {
     Enums: {
       alert_severity: ["info", "warning", "critical"],
       alert_status: ["open", "acknowledged", "resolved", "dismissed"],
+      eway_bill_source_type: ["sales_order", "sales_invoice", "purchase_order"],
+      eway_bill_status: ["generated", "cancelled", "expired"],
       invoice_payment_status: ["unpaid", "partial", "paid"],
       movement_type: [
         "inbound",
