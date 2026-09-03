@@ -370,6 +370,125 @@ export type Database = {
           },
         ]
       }
+      einvoice_credentials: {
+        Row: {
+          auth_url: string
+          cancel_url: string
+          client_id: string | null
+          client_secret: string | null
+          created_at: string
+          generate_url: string
+          gsp_password: string | null
+          gsp_provider: string
+          gsp_username: string | null
+          org_id: string
+          updated_at: string
+          updated_by: string
+        }
+        Insert: {
+          auth_url: string
+          cancel_url: string
+          client_id?: string | null
+          client_secret?: string | null
+          created_at?: string
+          generate_url: string
+          gsp_password?: string | null
+          gsp_provider: string
+          gsp_username?: string | null
+          org_id: string
+          updated_at?: string
+          updated_by?: string
+        }
+        Update: {
+          auth_url?: string
+          cancel_url?: string
+          client_id?: string | null
+          client_secret?: string | null
+          created_at?: string
+          generate_url?: string
+          gsp_password?: string | null
+          gsp_provider?: string
+          gsp_username?: string | null
+          org_id?: string
+          updated_at?: string
+          updated_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "einvoice_credentials_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      einvoices: {
+        Row: {
+          ack_date: string
+          ack_no: string
+          cancel_reason: string | null
+          cancelled_at: string | null
+          created_at: string
+          created_by: string
+          id: string
+          invoice_id: string
+          irn: string
+          org_id: string
+          qr_code: string
+          request_payload: Json
+          response_payload: Json
+          status: Database["public"]["Enums"]["einvoice_status"]
+        }
+        Insert: {
+          ack_date: string
+          ack_no: string
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          invoice_id: string
+          irn: string
+          org_id: string
+          qr_code: string
+          request_payload: Json
+          response_payload: Json
+          status?: Database["public"]["Enums"]["einvoice_status"]
+        }
+        Update: {
+          ack_date?: string
+          ack_no?: string
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          invoice_id?: string
+          irn?: string
+          org_id?: string
+          qr_code?: string
+          request_payload?: Json
+          response_payload?: Json
+          status?: Database["public"]["Enums"]["einvoice_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "einvoices_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "sales_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "einvoices_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       eway_bill_credentials: {
         Row: {
           auth_url: string
@@ -1728,6 +1847,16 @@ export type Database = {
         }
         Returns: string
       }
+      einvoice_credentials_status: {
+        Args: { _org: string }
+        Returns: {
+          auth_url: string
+          cancel_url: string
+          generate_url: string
+          gsp_provider: string
+          updated_at: string
+        }[]
+      }
       eway_bill_credentials_status: {
         Args: { _org: string }
         Returns: {
@@ -1760,6 +1889,7 @@ export type Database = {
     Enums: {
       alert_severity: "info" | "warning" | "critical"
       alert_status: "open" | "acknowledged" | "resolved" | "dismissed"
+      einvoice_status: "generated" | "cancelled"
       eway_bill_source_type: "sales_order" | "sales_invoice" | "purchase_order"
       eway_bill_status: "generated" | "cancelled" | "expired"
       invoice_payment_status: "unpaid" | "partial" | "paid"
@@ -1932,6 +2062,7 @@ export const Constants = {
     Enums: {
       alert_severity: ["info", "warning", "critical"],
       alert_status: ["open", "acknowledged", "resolved", "dismissed"],
+      einvoice_status: ["generated", "cancelled"],
       eway_bill_source_type: ["sales_order", "sales_invoice", "purchase_order"],
       eway_bill_status: ["generated", "cancelled", "expired"],
       invoice_payment_status: ["unpaid", "partial", "paid"],

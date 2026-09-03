@@ -80,6 +80,16 @@ function Account() {
   const [ewbClientSecret, setEwbClientSecret] = useState("");
   const [ewbBusy, setEwbBusy] = useState(false);
 
+  const [einvProvider, setEinvProvider] = useState("");
+  const [einvAuthUrl, setEinvAuthUrl] = useState("");
+  const [einvGenerateUrl, setEinvGenerateUrl] = useState("");
+  const [einvCancelUrl, setEinvCancelUrl] = useState("");
+  const [einvUsername, setEinvUsername] = useState("");
+  const [einvPassword, setEinvPassword] = useState("");
+  const [einvClientId, setEinvClientId] = useState("");
+  const [einvClientSecret, setEinvClientSecret] = useState("");
+  const [einvBusy, setEinvBusy] = useState(false);
+
   const profile = useQuery({
     queryKey: ["profile", user?.id],
     enabled: !!user?.id,
@@ -171,6 +181,53 @@ function Account() {
     setEwbGenerateUrl("");
     setEwbCancelUrl("");
     queryClient.invalidateQueries({ queryKey: ["eway-bill-credentials-status", org.id] });
+  };
+
+  const einvStatus = useQuery({
+    queryKey: ["einvoice-credentials-status", org?.id],
+    enabled: !!org?.id && canEditOrg,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("einvoice_credentials_status", {
+        _org: org!.id,
+      });
+      if (error) throw error;
+      return data?.[0] ?? null;
+    },
+  });
+
+  useEffect(() => {
+    if (einvStatus.data) setEinvProvider(einvStatus.data.gsp_provider);
+  }, [einvStatus.data]);
+
+  const saveEinvoiceCredentials = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!org) return;
+    setEinvBusy(true);
+    const { error } = await supabase.from("einvoice_credentials").upsert({
+      org_id: org.id,
+      gsp_provider: einvProvider,
+      auth_url: einvAuthUrl,
+      generate_url: einvGenerateUrl,
+      cancel_url: einvCancelUrl,
+      gsp_username: einvUsername || null,
+      gsp_password: einvPassword || null,
+      client_id: einvClientId || null,
+      client_secret: einvClientSecret || null,
+    });
+    setEinvBusy(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success("e-Invoicing credentials saved");
+    setEinvUsername("");
+    setEinvPassword("");
+    setEinvClientId("");
+    setEinvClientSecret("");
+    setEinvAuthUrl("");
+    setEinvGenerateUrl("");
+    setEinvCancelUrl("");
+    queryClient.invalidateQueries({ queryKey: ["einvoice-credentials-status", org.id] });
   };
 
   const saveOrg = async (e: React.FormEvent) => {
@@ -503,6 +560,126 @@ function Account() {
                 </div>
                 <Button type="submit" disabled={ewbBusy}>
                   {ewbBusy ? "Saving…" : ewbStatus.data ? "Update credentials" : "Save credentials"}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {org && canEditOrg ? (
+          <Card className="max-w-lg">
+            <CardHeader>
+              <CardTitle>e-Invoicing (IRN + QR code)</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-xs text-muted-foreground">
+                e-Invoicing submits sales invoices to the government's Invoice Registration Portal
+                (IRP) through your GST Suvidha Provider (GSP), returning an IRN and QR code. Enter
+                the base URLs and credentials your GSP issued you — these can be the same GSP as
+                e-Way Bill, but usually different endpoints. Stored securely and never shown again
+                once saved.
+              </p>
+              {einvStatus.data ? (
+                <p className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs">
+                  Configured: <span className="font-medium">{einvStatus.data.gsp_provider}</span> ·
+                  last updated {formatDateTime(einvStatus.data.updated_at)}
+                </p>
+              ) : (
+                <p className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn">
+                  No e-Invoicing provider configured yet — invoices above the e-invoicing threshold
+                  cannot be legally issued until this is set up.
+                </p>
+              )}
+              <form onSubmit={saveEinvoiceCredentials} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="einv-provider">GSP provider name</Label>
+                  <Input
+                    id="einv-provider"
+                    required
+                    value={einvProvider}
+                    onChange={(e) => setEinvProvider(e.target.value)}
+                    placeholder="e.g. ClearTax, MasterGST"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="einv-auth-url">Auth URL</Label>
+                  <Input
+                    id="einv-auth-url"
+                    type="url"
+                    required
+                    value={einvAuthUrl}
+                    onChange={(e) => setEinvAuthUrl(e.target.value)}
+                    placeholder="https://…/authenticate"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="einv-generate-url">Generate URL</Label>
+                  <Input
+                    id="einv-generate-url"
+                    type="url"
+                    required
+                    value={einvGenerateUrl}
+                    onChange={(e) => setEinvGenerateUrl(e.target.value)}
+                    placeholder="https://…/eicore/v1.03/Invoice"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="einv-cancel-url">Cancel URL</Label>
+                  <Input
+                    id="einv-cancel-url"
+                    type="url"
+                    required
+                    value={einvCancelUrl}
+                    onChange={(e) => setEinvCancelUrl(e.target.value)}
+                    placeholder="https://…/eicore/v1.03/Invoice/Cancel"
+                  />
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="einv-username">GSP username</Label>
+                    <Input
+                      id="einv-username"
+                      value={einvUsername}
+                      onChange={(e) => setEinvUsername(e.target.value)}
+                      autoComplete="off"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="einv-password">GSP password</Label>
+                    <Input
+                      id="einv-password"
+                      type="password"
+                      value={einvPassword}
+                      onChange={(e) => setEinvPassword(e.target.value)}
+                      autoComplete="new-password"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="einv-client-id">Client ID</Label>
+                    <Input
+                      id="einv-client-id"
+                      value={einvClientId}
+                      onChange={(e) => setEinvClientId(e.target.value)}
+                      autoComplete="off"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="einv-client-secret">Client secret</Label>
+                    <Input
+                      id="einv-client-secret"
+                      type="password"
+                      value={einvClientSecret}
+                      onChange={(e) => setEinvClientSecret(e.target.value)}
+                      autoComplete="new-password"
+                    />
+                  </div>
+                </div>
+                <Button type="submit" disabled={einvBusy}>
+                  {einvBusy
+                    ? "Saving…"
+                    : einvStatus.data
+                      ? "Update credentials"
+                      : "Save credentials"}
                 </Button>
               </form>
             </CardContent>
