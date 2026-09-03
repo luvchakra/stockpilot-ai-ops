@@ -60,26 +60,54 @@ function initialsFromEmail(email: string | null | undefined) {
   return email.slice(0, 2).toUpperCase();
 }
 
-// Two visual groups, matching the reference layout: everyday views up top,
-// action/ops items (what needs doing) below a divider.
-const NAV_PRIMARY = [
-  { to: "/dashboard", label: "Overview", icon: LayoutDashboard },
-  { to: "/products", label: "Products", icon: Package },
-  { to: "/inventory", label: "Inventory", icon: ArrowLeftRight },
-  { to: "/warehouses", label: "Warehouses", icon: Warehouse },
-  { to: "/suppliers", label: "Suppliers", icon: Truck },
-  { to: "/customers", label: "Customers", icon: Users },
+// Grouped by business domain so the sidebar stays scannable as more pages
+// are added: a pinned, unlabeled "everyday" group up top (checked many
+// times a day), then labeled domain sections below.
+const NAV_GROUPS = [
+  {
+    label: null,
+    items: [
+      { to: "/dashboard", label: "Overview", icon: LayoutDashboard },
+      { to: "/alerts", label: "Alerts", icon: AlertTriangle },
+    ],
+  },
+  {
+    label: "Catalog & Inventory",
+    items: [
+      { to: "/products", label: "Products", icon: Package },
+      { to: "/inventory", label: "Inventory", icon: ArrowLeftRight },
+      { to: "/warehouses", label: "Warehouses", icon: Warehouse },
+    ],
+  },
+  {
+    label: "Sales",
+    items: [
+      { to: "/customers", label: "Customers", icon: Users },
+      { to: "/sales-orders", label: "Sales Orders", icon: ShoppingCart },
+      { to: "/sales-invoices", label: "Sales Invoices", icon: FileText },
+    ],
+  },
+  {
+    label: "Purchasing",
+    items: [
+      { to: "/suppliers", label: "Suppliers", icon: Truck },
+      { to: "/purchase-orders", label: "Purchase Orders", icon: ClipboardList },
+    ],
+  },
+  {
+    label: "Compliance",
+    items: [{ to: "/gst-filing", label: "GST Filing", icon: Receipt }],
+  },
+  {
+    label: "Administration",
+    items: [
+      { to: "/team", label: "Team", icon: Shield },
+      { to: "/audit-log", label: "Audit Log", icon: History },
+    ],
+  },
 ] as const;
 
-const NAV_SECONDARY = [
-  { to: "/sales-orders", label: "Sales Orders", icon: ShoppingCart },
-  { to: "/sales-invoices", label: "Sales Invoices", icon: FileText },
-  { to: "/purchase-orders", label: "Purchase Orders", icon: ClipboardList },
-  { to: "/alerts", label: "Alerts", icon: AlertTriangle },
-  { to: "/gst-filing", label: "GST Filing", icon: Receipt },
-  { to: "/team", label: "Team", icon: Shield },
-  { to: "/audit-log", label: "Audit Log", icon: History },
-] as const;
+type NavItem = (typeof NAV_GROUPS)[number]["items"][number];
 
 export function AppShell({
   title,
@@ -130,10 +158,7 @@ export function AppShell({
     navigate({ to: "/auth" });
   };
 
-  const navItem = (
-    item: (typeof NAV_PRIMARY)[number] | (typeof NAV_SECONDARY)[number],
-    onNavigate?: () => void,
-  ) => {
+  const navItem = (item: NavItem, onNavigate?: () => void) => {
     const Icon = item.icon;
     const active = pathname === item.to;
     const showAlertDot = item.to === "/alerts" && openAlertCount > 0;
@@ -162,9 +187,18 @@ export function AppShell({
 
   const navLinks = (onNavigate?: () => void) => (
     <nav className="flex flex-1 flex-col gap-1">
-      {NAV_PRIMARY.map((item) => navItem(item, onNavigate))}
-      <div className="my-2 border-t border-sidebar-border" />
-      {NAV_SECONDARY.map((item) => navItem(item, onNavigate))}
+      {NAV_GROUPS.map((group, i) => (
+        <div key={group.label ?? `group-${i}`} className={i > 0 ? "mt-4" : undefined}>
+          {group.label ? (
+            <p className="mb-1 px-3 text-xs font-medium uppercase tracking-wide text-muted-foreground/70">
+              {group.label}
+            </p>
+          ) : null}
+          <div className="flex flex-col gap-1">
+            {group.items.map((item) => navItem(item, onNavigate))}
+          </div>
+        </div>
+      ))}
     </nav>
   );
 
@@ -316,7 +350,7 @@ export function AppShell({
         </aside>
 
         <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-          <SheetContent side="left" className="flex w-64 flex-col bg-sidebar p-4">
+          <SheetContent side="left" className="flex w-64 flex-col overflow-y-auto bg-sidebar p-4">
             <SheetTitle asChild>
               <Link
                 to="/dashboard"
