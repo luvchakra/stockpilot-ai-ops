@@ -11,7 +11,7 @@ import {
 } from "@/content/blog-posts";
 import { formatDate } from "@/lib/format";
 
-const SITE_URL = "https://stockpilot-ai-ops.lovable.app";
+const SITE_URL = "https://stockpilot-ai-ops.vercel.app";
 
 export const Route = createFileRoute("/blog/$slug")({
   loader: ({ params }) => {
