@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Package, Pencil, Plus } from "lucide-react";
+import { Barcode, Package, Pencil, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentOrg } from "@/hooks/useOrg";
 import { AppShell } from "@/components/app-shell";
@@ -38,6 +38,7 @@ import {
 import { inr } from "@/lib/format";
 import { GST_RATE_SLABS } from "@/lib/gst";
 import { ProductImportDialog } from "@/components/product-import-dialog";
+import { BarcodeLabelDialog } from "@/components/barcode-label-dialog";
 import { usePermissions } from "@/hooks/usePermissions";
 
 export const Route = createFileRoute("/_authenticated/products")({
@@ -75,6 +76,8 @@ function Products() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [barcodeDialogOpen, setBarcodeDialogOpen] = useState(false);
+  const [barcodePreselect, setBarcodePreselect] = useState<string[]>([]);
 
   const canEdit = can("inventory.edit");
   const canDelete = can("inventory.delete");
@@ -231,6 +234,17 @@ function Products() {
               suppliers={suppliers.data ?? []}
               onImported={() => queryClient.invalidateQueries({ queryKey: ["products", orgId] })}
             />
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setBarcodePreselect([]);
+                setBarcodeDialogOpen(true);
+              }}
+            >
+              <Barcode className="size-4" />
+              Generate Barcode/QR
+            </Button>
             <Dialog open={open} onOpenChange={setOpen}>
               <DialogTrigger asChild>
                 <Button
@@ -480,6 +494,17 @@ function Products() {
                         <Button
                           variant="ghost"
                           size="sm"
+                          onClick={() => {
+                            setBarcodePreselect([p.id!]);
+                            setBarcodeDialogOpen(true);
+                          }}
+                        >
+                          <Barcode className="size-4" />
+                          Barcode
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() =>
                             toggleStatus.mutate({
                               id: p.id!,
@@ -545,6 +570,17 @@ function Products() {
                     <Button
                       variant="ghost"
                       size="sm"
+                      onClick={() => {
+                        setBarcodePreselect([p.id!]);
+                        setBarcodeDialogOpen(true);
+                      }}
+                    >
+                      <Barcode className="size-4" />
+                      Barcode
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() =>
                         toggleStatus.mutate({
                           id: p.id!,
@@ -561,6 +597,21 @@ function Products() {
           </div>
         </>
       )}
+      {orgId ? (
+        <BarcodeLabelDialog
+          key={barcodePreselect.join(",") || "bulk"}
+          open={barcodeDialogOpen}
+          onOpenChange={setBarcodeDialogOpen}
+          orgId={orgId}
+          products={(products.data ?? []).map((p) => ({
+            id: p.id!,
+            sku: p.sku ?? "",
+            name: p.name ?? "",
+            barcode: p.barcode ?? null,
+          }))}
+          initialSelectedIds={barcodePreselect}
+        />
+      ) : null}
     </AppShell>
   );
 }

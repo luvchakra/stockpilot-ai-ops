@@ -36,6 +36,8 @@ import {
 } from "@/components/ui/table";
 import { num } from "@/lib/format";
 import { usePermissions } from "@/hooks/usePermissions";
+import { ScanInput } from "@/components/scan-input";
+import { resolveProductByScan } from "@/lib/barcode-scan";
 
 export const Route = createFileRoute("/_authenticated/inventory")({
   head: () => ({
@@ -112,7 +114,7 @@ function Inventory() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
-        .select("id, name, sku")
+        .select("id, name, sku, barcode")
         .eq("org_id", orgId!)
         .eq("status", "active")
         .order("name");
@@ -187,6 +189,15 @@ function Inventory() {
     onError: (err) => toast.error(err instanceof Error ? err.message : "Could not record movement"),
   });
 
+  const handleScanProduct = (value: string) => {
+    const product = resolveProductByScan(products.data ?? [], value);
+    if (!product) {
+      toast.error(`No product found for "${value}". Search for it manually instead.`);
+      return;
+    }
+    setForm((f) => ({ ...f, product_id: product.id }));
+  };
+
   const startEdit = (row: NonNullable<typeof stockLevels.data>[number]) => {
     setForm({
       ...emptyForm,
@@ -240,6 +251,10 @@ function Inventory() {
                   recordMovement.mutate();
                 }}
               >
+                <ScanInput
+                  onScan={handleScanProduct}
+                  placeholder="Scan or type a product barcode / SKU"
+                />
                 <div className="space-y-2">
                   <Label htmlFor="mv-product">Product</Label>
                   <Select
