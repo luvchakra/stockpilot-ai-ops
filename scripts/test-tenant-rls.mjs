@@ -1197,6 +1197,41 @@ async function main() {
     });
     const supplierId = supplier.data?.[0]?.id;
 
+    // This section needs its own customer/warehouse/product (not I's —
+    // that block has already closed) with enough opening stock for
+    // confirm_sales_order below to find available quantity to reserve.
+    const customer = await rest("POST", "customers", {
+      token: admin.token,
+      body: { org_id: orgId, name: `K Customer ${RUN_ID}`, state: "Maharashtra" },
+    });
+    const customerId = customer.data?.[0]?.id;
+    const warehouse = await rest("POST", "warehouses", {
+      token: admin.token,
+      body: { org_id: orgId, name: "K Test WH", code: `K-WH-${RUN_ID}` },
+    });
+    const warehouseId = warehouse.data?.[0]?.id;
+    const product = await rest("POST", "products", {
+      token: admin.token,
+      body: {
+        org_id: orgId,
+        sku: `K-SKU-${RUN_ID}`,
+        name: "K test product",
+        selling_price: 100,
+        tax_rate: 18,
+      },
+    });
+    const productId = product.data?.[0]?.id;
+    await rest("POST", "stock_movements", {
+      token: admin.token,
+      body: {
+        org_id: orgId,
+        product_id: productId,
+        warehouse_id: warehouseId,
+        type: "inbound",
+        quantity: 10,
+      },
+    });
+
     // Sales Manager can confirm a sales order...
     const smSoNumber = await rpc("next_sales_order_number", {
       token: salesManager.token,
