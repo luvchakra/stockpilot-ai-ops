@@ -370,6 +370,73 @@ export type Database = {
           },
         ]
       }
+      demo_seed_batches: {
+        Row: {
+          created_at: string
+          id: string
+          org_id: string
+          record_count: number
+          requested_by: string
+          target_user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          org_id: string
+          record_count?: number
+          requested_by: string
+          target_user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          org_id?: string
+          record_count?: number
+          requested_by?: string
+          target_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "demo_seed_batches_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      demo_seed_records: {
+        Row: {
+          batch_id: string
+          created_at: string
+          id: number
+          record_id: string
+          table_name: string
+        }
+        Insert: {
+          batch_id: string
+          created_at?: string
+          id?: number
+          record_id: string
+          table_name: string
+        }
+        Update: {
+          batch_id?: string
+          created_at?: string
+          id?: number
+          record_id?: string
+          table_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "demo_seed_records_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "demo_seed_batches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       einvoice_credentials: {
         Row: {
           auth_url: string

@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as BlogRouteImport } from './routes/blog'
 import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated/account'
+import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAlertsRouteImport } from './routes/_authenticated/alerts'
 import { Route as AuthenticatedAuditLogRouteImport } from './routes/_authenticated/audit-log'
 import { Route as AuthenticatedCustomersRouteImport } from './routes/_authenticated/customers'
@@ -53,6 +54,11 @@ const BlogRoute = BlogRouteImport.update({
 const AuthenticatedAccountRoute = AuthenticatedAccountRouteImport.update({
   id: '/account',
   path: '/account',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedAlertsRoute = AuthenticatedAlertsRouteImport.update({
@@ -145,6 +151,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/blog': typeof BlogRouteWithChildren
   '/account': typeof AuthenticatedAccountRoute
+  '/admin': typeof AuthenticatedAdminRoute
   '/alerts': typeof AuthenticatedAlertsRoute
   '/audit-log': typeof AuthenticatedAuditLogRoute
   '/customers': typeof AuthenticatedCustomersRoute
@@ -167,6 +174,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/blog': typeof BlogRouteWithChildren
   '/account': typeof AuthenticatedAccountRoute
+  '/admin': typeof AuthenticatedAdminRoute
   '/alerts': typeof AuthenticatedAlertsRoute
   '/audit-log': typeof AuthenticatedAuditLogRoute
   '/customers': typeof AuthenticatedCustomersRoute
@@ -191,6 +199,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/blog': typeof BlogRouteWithChildren
   '/_authenticated/account': typeof AuthenticatedAccountRoute
+  '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/alerts': typeof AuthenticatedAlertsRoute
   '/_authenticated/audit-log': typeof AuthenticatedAuditLogRoute
   '/_authenticated/customers': typeof AuthenticatedCustomersRoute
@@ -215,6 +224,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/blog'
     | '/account'
+    | '/admin'
     | '/alerts'
     | '/audit-log'
     | '/customers'
@@ -237,6 +247,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/blog'
     | '/account'
+    | '/admin'
     | '/alerts'
     | '/audit-log'
     | '/customers'
@@ -260,6 +271,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/blog'
     | '/_authenticated/account'
+    | '/_authenticated/admin'
     | '/_authenticated/alerts'
     | '/_authenticated/audit-log'
     | '/_authenticated/customers'
@@ -320,6 +332,13 @@ declare module '@tanstack/react-router' {
       path: '/account'
       fullPath: '/account'
       preLoaderRoute: typeof AuthenticatedAccountRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin': {
+      id: '/_authenticated/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AuthenticatedAdminRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/alerts': {
@@ -439,6 +458,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAccountRoute: typeof AuthenticatedAccountRoute
+  AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
   AuthenticatedAlertsRoute: typeof AuthenticatedAlertsRoute
   AuthenticatedAuditLogRoute: typeof AuthenticatedAuditLogRoute
   AuthenticatedCustomersRoute: typeof AuthenticatedCustomersRoute
@@ -458,6 +478,7 @@ interface AuthenticatedRouteRouteChildren {
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAccountRoute: AuthenticatedAccountRoute,
+  AuthenticatedAdminRoute: AuthenticatedAdminRoute,
   AuthenticatedAlertsRoute: AuthenticatedAlertsRoute,
   AuthenticatedAuditLogRoute: AuthenticatedAuditLogRoute,
   AuthenticatedCustomersRoute: AuthenticatedCustomersRoute,

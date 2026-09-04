@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -9,6 +9,7 @@ import {
   Boxes,
   Check,
   ClipboardList,
+  Database,
   FileText,
   History,
   LayoutDashboard,
@@ -34,6 +35,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useCurrentOrg } from "@/hooks/useOrg";
+import { isPlatformAdmin } from "@/lib/admin-auth";
 import { useTheme, type ThemeMode } from "@/hooks/useTheme";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -109,7 +111,8 @@ const NAV_GROUPS = [
   },
 ] as const;
 
-type NavItem = (typeof NAV_GROUPS)[number]["items"][number];
+type NavItem = { to: string; label: string; icon: typeof Shield };
+type NavGroup = { label: string | null; items: readonly NavItem[] };
 
 export function AppShell({
   title,
@@ -133,13 +136,33 @@ export function AppShell({
   const { mode, setMode } = useTheme();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
+  // Cheap, non-sensitive check purely to decide whether to show the link at
+  // all -- requirePlatformAdmin on each admin server function is what
+  // actually protects the /admin page and its data either way.
+  const platformAdmin = useQuery({
+    queryKey: ["admin", "is-platform-admin"],
+    queryFn: () => isPlatformAdmin(),
+    staleTime: 5 * 60 * 1000,
+  });
+  const isPlatformAdminUser = platformAdmin.data?.isAdmin ?? false;
+  const navGroups: NavGroup[] = useMemo(
+    () =>
+      isPlatformAdminUser
+        ? [
+            ...NAV_GROUPS,
+            { label: "Platform", items: [{ to: "/admin", label: "Demo Data", icon: Database }] },
+          ]
+        : [...NAV_GROUPS],
+    [isPlatformAdminUser],
+  );
+
   // Labeled groups are collapsed by default (tap a group to reveal its
   // items) -- except whichever one holds the current page, so landing on
   // a route never hides its own nav entry. A returning visitor's manual
   // expand/collapse choices are remembered across sessions.
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(() => {
     const defaults: Record<string, boolean> = {};
-    for (const g of NAV_GROUPS) {
+    for (const g of navGroups) {
       if (g.label) defaults[g.label] = true;
     }
     if (typeof window !== "undefined") {
@@ -150,7 +173,7 @@ export function AppShell({
         // private browsing / storage disabled -- fall back to defaults
       }
     }
-    const activeGroup = NAV_GROUPS.find(
+    const activeGroup = navGroups.find(
       (g) => g.label && g.items.some((item) => item.to === pathname),
     );
     if (activeGroup?.label) defaults[activeGroup.label] = false;
@@ -166,14 +189,14 @@ export function AppShell({
   }, [collapsedGroups]);
 
   useEffect(() => {
-    const activeGroup = NAV_GROUPS.find(
+    const activeGroup = navGroups.find(
       (g) => g.label && g.items.some((item) => item.to === pathname),
     );
     if (!activeGroup?.label) return;
     setCollapsedGroups((prev) =>
       prev[activeGroup.label!] ? { ...prev, [activeGroup.label!]: false } : prev,
     );
-  }, [pathname]);
+  }, [pathname, navGroups]);
 
   const toggleGroup = (label: string) => {
     setCollapsedGroups((prev) => ({ ...prev, [label]: !prev[label] }));
@@ -213,7 +236,11 @@ export function AppShell({
     return (
       <Link
         key={item.to}
-        to={item.to}
+        // The sidebar's item list is built dynamically (the platform-admin
+        // entry is appended at runtime), so it can't carry the router's
+        // per-route literal `to` type the way a static <Link> can.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        to={item.to as any}
         onClick={onNavigate}
         className={cn(
           "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
@@ -235,7 +262,7 @@ export function AppShell({
 
   const navLinks = (onNavigate?: () => void) => (
     <nav className="flex flex-1 flex-col gap-1">
-      {NAV_GROUPS.map((group, i) => {
+      {navGroups.map((group, i) => {
         const collapsed = !!(group.label && collapsedGroups[group.label]);
         return (
           <div key={group.label ?? `group-${i}`} className={i > 0 ? "mt-2" : undefined}>
