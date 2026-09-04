@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Check, Plus, Receipt, Trash2, X } from "lucide-react";
+import { Check, Plus, Receipt, RotateCcw, Trash2, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { useCurrentOrg } from "@/hooks/useOrg";
@@ -199,10 +199,12 @@ function StageStepper({ status }: { status: SoStatus }) {
 function SalesOrders() {
   const { org } = useCurrentOrg();
   const { can } = usePermissions();
+  const navigate = useNavigate();
   const canEdit = can("sales_orders.edit");
   const canConfirm = can("sales_orders.confirm");
   const canShip = can("sales_orders.ship");
   const canCancel = can("sales_orders.cancel");
+  const canCreateReturn = can("sales_returns.create");
   const orgId = org?.id;
   const queryClient = useQueryClient();
 
@@ -1071,6 +1073,18 @@ function SalesOrders() {
               ) : null}
 
               <div className="flex flex-wrap justify-end gap-2">
+                {(selectedSo.status === "shipped" || selectedSo.status === "delivered") &&
+                canCreateReturn ? (
+                  <Button
+                    variant="outline"
+                    onClick={() =>
+                      navigate({ to: "/sales-returns", search: { so: selectedSo.id } })
+                    }
+                  >
+                    <RotateCcw className="size-4" />
+                    Create return
+                  </Button>
+                ) : null}
                 {selectedSo.status === "draft" && canEdit ? (
                   <Button
                     variant="outline"

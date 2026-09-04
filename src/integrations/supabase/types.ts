@@ -201,6 +201,7 @@ export type Database = {
           org_id: string
           reason: string | null
           sales_invoice_id: string
+          sales_return_id: string | null
           sgst_amount: number
           subtotal: number
           total_amount: number
@@ -217,6 +218,7 @@ export type Database = {
           org_id: string
           reason?: string | null
           sales_invoice_id: string
+          sales_return_id?: string | null
           sgst_amount?: number
           subtotal?: number
           total_amount?: number
@@ -233,6 +235,7 @@ export type Database = {
           org_id?: string
           reason?: string | null
           sales_invoice_id?: string
+          sales_return_id?: string | null
           sgst_amount?: number
           subtotal?: number
           total_amount?: number
@@ -250,6 +253,13 @@ export type Database = {
             columns: ["sales_invoice_id"]
             isOneToOne: false
             referencedRelation: "sales_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_notes_sales_return_id_fkey"
+            columns: ["sales_return_id"]
+            isOneToOne: false
+            referencedRelation: "sales_returns"
             referencedColumns: ["id"]
           },
         ]
@@ -1536,6 +1546,186 @@ export type Database = {
           },
         ]
       }
+      sales_return_counters: {
+        Row: {
+          financial_year: string
+          next_number: number
+          org_id: string
+        }
+        Insert: {
+          financial_year: string
+          next_number?: number
+          org_id: string
+        }
+        Update: {
+          financial_year?: string
+          next_number?: number
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_return_counters_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sales_return_items: {
+        Row: {
+          created_at: string
+          id: string
+          is_damaged: boolean
+          org_id: string
+          product_id: string
+          quantity: number
+          reason: Database["public"]["Enums"]["sales_return_reason"]
+          restock: boolean
+          sales_return_id: string
+          unit_price: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_damaged?: boolean
+          org_id: string
+          product_id: string
+          quantity: number
+          reason?: Database["public"]["Enums"]["sales_return_reason"]
+          restock?: boolean
+          sales_return_id: string
+          unit_price?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_damaged?: boolean
+          org_id?: string
+          product_id?: string
+          quantity?: number
+          reason?: Database["public"]["Enums"]["sales_return_reason"]
+          restock?: boolean
+          sales_return_id?: string
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_return_items_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_return_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_return_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_return_items_sales_return_id_fkey"
+            columns: ["sales_return_id"]
+            isOneToOne: false
+            referencedRelation: "sales_returns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sales_returns: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          cancelled_at: string | null
+          completed_at: string | null
+          created_at: string
+          credit_note_id: string | null
+          id: string
+          notes: string | null
+          org_id: string
+          requested_by: string
+          return_date: string
+          return_number: string
+          sales_invoice_id: string | null
+          sales_order_id: string
+          status: Database["public"]["Enums"]["sales_return_status"]
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          cancelled_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          credit_note_id?: string | null
+          id?: string
+          notes?: string | null
+          org_id: string
+          requested_by?: string
+          return_date?: string
+          return_number: string
+          sales_invoice_id?: string | null
+          sales_order_id: string
+          status?: Database["public"]["Enums"]["sales_return_status"]
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          cancelled_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          credit_note_id?: string | null
+          id?: string
+          notes?: string | null
+          org_id?: string
+          requested_by?: string
+          return_date?: string
+          return_number?: string
+          sales_invoice_id?: string | null
+          sales_order_id?: string
+          status?: Database["public"]["Enums"]["sales_return_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_returns_credit_note_id_fkey"
+            columns: ["credit_note_id"]
+            isOneToOne: false
+            referencedRelation: "credit_notes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_returns_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_returns_sales_invoice_id_fkey"
+            columns: ["sales_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "sales_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_returns_sales_order_id_fkey"
+            columns: ["sales_order_id"]
+            isOneToOne: false
+            referencedRelation: "sales_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stock_levels: {
         Row: {
           damaged: number
@@ -2041,6 +2231,7 @@ export type Database = {
       }
     }
     Functions: {
+      approve_sales_return: { Args: { _return_id: string }; Returns: undefined }
       cancel_sales_order: { Args: { _so_id: string }; Returns: undefined }
       cancel_stock_transfer: { Args: { _transfer_id: string }; Returns: undefined }
       confirm_sales_order: { Args: { _so_id: string }; Returns: undefined }
@@ -2086,6 +2277,7 @@ export type Database = {
       next_credit_note_number: { Args: { _org_id: string }; Returns: string }
       next_sales_invoice_number: { Args: { _org_id: string }; Returns: string }
       next_sales_order_number: { Args: { _org_id: string }; Returns: string }
+      next_sales_return_number: { Args: { _org_id: string }; Returns: string }
       receive_purchase_order_item: {
         Args: { _item_id: string; _quantity: number }
         Returns: undefined
@@ -2141,6 +2333,14 @@ export type Database = {
         | "received"
         | "closed"
         | "cancelled"
+      sales_return_reason:
+        | "wrong_item"
+        | "damaged"
+        | "changed_mind"
+        | "size_issue"
+        | "quality_issue"
+        | "other"
+      sales_return_status: "draft" | "approved" | "completed" | "cancelled"
       so_status:
         | "draft"
         | "confirmed"
@@ -2331,6 +2531,15 @@ export const Constants = {
         "closed",
         "cancelled",
       ],
+      sales_return_reason: [
+        "wrong_item",
+        "damaged",
+        "changed_mind",
+        "size_issue",
+        "quality_issue",
+        "other",
+      ],
+      sales_return_status: ["draft", "approved", "completed", "cancelled"],
       so_status: [
         "draft",
         "confirmed",

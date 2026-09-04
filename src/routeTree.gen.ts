@@ -26,6 +26,7 @@ import { Route as AuthenticatedProductsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedPurchaseOrdersRouteImport } from './routes/_authenticated/purchase-orders'
 import { Route as AuthenticatedSalesInvoicesRouteImport } from './routes/_authenticated/sales-invoices'
 import { Route as AuthenticatedSalesOrdersRouteImport } from './routes/_authenticated/sales-orders'
+import { Route as AuthenticatedSalesReturnsRouteImport } from './routes/_authenticated/sales-returns'
 import { Route as AuthenticatedStockTransfersRouteImport } from './routes/_authenticated/stock-transfers'
 import { Route as AuthenticatedSuppliersRouteImport } from './routes/_authenticated/suppliers'
 import { Route as AuthenticatedTeamRouteImport } from './routes/_authenticated/team'
@@ -119,6 +120,12 @@ const AuthenticatedSalesOrdersRoute =
     path: '/sales-orders',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedSalesReturnsRoute =
+  AuthenticatedSalesReturnsRouteImport.update({
+    id: '/sales-returns',
+    path: '/sales-returns',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedStockTransfersRoute =
   AuthenticatedStockTransfersRouteImport.update({
     id: '/stock-transfers',
@@ -163,6 +170,7 @@ export interface FileRoutesByFullPath {
   '/purchase-orders': typeof AuthenticatedPurchaseOrdersRoute
   '/sales-invoices': typeof AuthenticatedSalesInvoicesRoute
   '/sales-orders': typeof AuthenticatedSalesOrdersRoute
+  '/sales-returns': typeof AuthenticatedSalesReturnsRoute
   '/stock-transfers': typeof AuthenticatedStockTransfersRoute
   '/suppliers': typeof AuthenticatedSuppliersRoute
   '/team': typeof AuthenticatedTeamRoute
@@ -186,6 +194,7 @@ export interface FileRoutesByTo {
   '/purchase-orders': typeof AuthenticatedPurchaseOrdersRoute
   '/sales-invoices': typeof AuthenticatedSalesInvoicesRoute
   '/sales-orders': typeof AuthenticatedSalesOrdersRoute
+  '/sales-returns': typeof AuthenticatedSalesReturnsRoute
   '/stock-transfers': typeof AuthenticatedStockTransfersRoute
   '/suppliers': typeof AuthenticatedSuppliersRoute
   '/team': typeof AuthenticatedTeamRoute
@@ -211,6 +220,7 @@ export interface FileRoutesById {
   '/_authenticated/purchase-orders': typeof AuthenticatedPurchaseOrdersRoute
   '/_authenticated/sales-invoices': typeof AuthenticatedSalesInvoicesRoute
   '/_authenticated/sales-orders': typeof AuthenticatedSalesOrdersRoute
+  '/_authenticated/sales-returns': typeof AuthenticatedSalesReturnsRoute
   '/_authenticated/stock-transfers': typeof AuthenticatedStockTransfersRoute
   '/_authenticated/suppliers': typeof AuthenticatedSuppliersRoute
   '/_authenticated/team': typeof AuthenticatedTeamRoute
@@ -236,6 +246,7 @@ export interface FileRouteTypes {
     | '/purchase-orders'
     | '/sales-invoices'
     | '/sales-orders'
+    | '/sales-returns'
     | '/stock-transfers'
     | '/suppliers'
     | '/team'
@@ -259,6 +270,7 @@ export interface FileRouteTypes {
     | '/purchase-orders'
     | '/sales-invoices'
     | '/sales-orders'
+    | '/sales-returns'
     | '/stock-transfers'
     | '/suppliers'
     | '/team'
@@ -283,6 +295,7 @@ export interface FileRouteTypes {
     | '/_authenticated/purchase-orders'
     | '/_authenticated/sales-invoices'
     | '/_authenticated/sales-orders'
+    | '/_authenticated/sales-returns'
     | '/_authenticated/stock-transfers'
     | '/_authenticated/suppliers'
     | '/_authenticated/team'
@@ -418,6 +431,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSalesOrdersRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/sales-returns': {
+      id: '/_authenticated/sales-returns'
+      path: '/sales-returns'
+      fullPath: '/sales-returns'
+      preLoaderRoute: typeof AuthenticatedSalesReturnsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/stock-transfers': {
       id: '/_authenticated/stock-transfers'
       path: '/stock-transfers'
@@ -470,6 +490,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedPurchaseOrdersRoute: typeof AuthenticatedPurchaseOrdersRoute
   AuthenticatedSalesInvoicesRoute: typeof AuthenticatedSalesInvoicesRoute
   AuthenticatedSalesOrdersRoute: typeof AuthenticatedSalesOrdersRoute
+  AuthenticatedSalesReturnsRoute: typeof AuthenticatedSalesReturnsRoute
   AuthenticatedStockTransfersRoute: typeof AuthenticatedStockTransfersRoute
   AuthenticatedSuppliersRoute: typeof AuthenticatedSuppliersRoute
   AuthenticatedTeamRoute: typeof AuthenticatedTeamRoute
@@ -490,6 +511,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedPurchaseOrdersRoute: AuthenticatedPurchaseOrdersRoute,
   AuthenticatedSalesInvoicesRoute: AuthenticatedSalesInvoicesRoute,
   AuthenticatedSalesOrdersRoute: AuthenticatedSalesOrdersRoute,
+  AuthenticatedSalesReturnsRoute: AuthenticatedSalesReturnsRoute,
   AuthenticatedStockTransfersRoute: AuthenticatedStockTransfersRoute,
   AuthenticatedSuppliersRoute: AuthenticatedSuppliersRoute,
   AuthenticatedTeamRoute: AuthenticatedTeamRoute,
