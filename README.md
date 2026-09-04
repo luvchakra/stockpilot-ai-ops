@@ -14,7 +14,7 @@ Status: Development Specification
 
 Target Market: India-first, globally extensible
 
-Primary Build Platforms: Lovable + Emergent
+Primary Build Platforms: Vercel + Emergent
 
 Primary Architecture: Multi-tenant SaaS
 
@@ -3166,17 +3166,9 @@ WhatsApp
 
 Architecture-ready for supported
 
-This project was built with [Lovable](https://lovable.dev).
+**Live app**: https://stockpilot-ai-ops.vercel.app
 
-**Live app**: https://stockpilot-ai-ops.lovable.app
-
-## Build with Lovable
-
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/e65806c0-73d7-4860-aea6-a13e20257618).
-
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
+Deployed on Vercel, connected directly to this GitHub repository — push to `main` and it ships.
 
 ## Development
 
