@@ -121,7 +121,12 @@ async function rest(method, table, { token, body, query = "", extraHeaders = {} 
   };
   if (token) headers.Authorization = `Bearer ${token}`;
   else if (SERVICE_KEY) headers.Authorization = `Bearer ${SERVICE_KEY}`;
-  if (method !== "GET") headers.Prefer = "return=representation";
+  // Default to asking for the row back, but let a caller opt out (extraHeaders)
+  // — needed for tables like *_credentials that deliberately have no SELECT
+  // policy for `authenticated`: RETURNING is itself subject to RLS, so
+  // requesting a representation there fails even when the write itself is
+  // permitted. The real app avoids this by never chaining .select().
+  if (method !== "GET" && !headers.Prefer) headers.Prefer = "return=representation";
 
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}${query}`, {
     method,
@@ -411,9 +416,13 @@ async function main() {
       query: `?id=eq.${orgId}`,
       body: { name: "Viewer Renamed Co" },
     });
+    // A blocked RLS UPDATE isn't an error status — PostgREST returns 200
+    // with zero rows when the USING clause matches nothing, so the real
+    // signal is an empty result, not a non-2xx response.
+    const viewerRenamed = asViewer.ok && asViewer.data?.length > 0;
     check(
       "viewer cannot rename the workspace",
-      !asViewer.ok,
+      !viewerRenamed,
       `status ${asViewer.status}, body ${JSON.stringify(asViewer.data)}`,
     );
 
@@ -1830,8 +1839,12 @@ async function main() {
     );
 
     // --- Credentials: no client SELECT path for anyone, writes gated by settings.manage ---
+    // return=minimal: this table has no SELECT policy for `authenticated` by
+    // design, and RETURNING is itself subject to RLS, so asking for the row
+    // back would fail even though the write itself is permitted.
     const credInsert = await rest("POST", "eway_bill_credentials", {
       token: admin.token,
+      extraHeaders: { Prefer: "return=minimal" },
       body: {
         org_id: orgId,
         gsp_provider: "TestGSP",
@@ -2098,8 +2111,10 @@ async function main() {
     );
 
     // --- Credentials: no client SELECT path for anyone, writes gated by settings.manage ---
+    // return=minimal: same no-SELECT-policy reasoning as eway_bill_credentials above.
     const credInsert = await rest("POST", "einvoice_credentials", {
       token: admin.token,
+      extraHeaders: { Prefer: "return=minimal" },
       body: {
         org_id: orgId,
         gsp_provider: "TestGSP",
