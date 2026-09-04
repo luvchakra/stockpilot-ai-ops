@@ -2759,8 +2759,32 @@ async function main() {
         tax_rate: 18,
       },
     });
-    await rpc("confirm_sales_order", { token: admin.token, body: { _so_id: noInvoiceSoId } });
-    await rpc("ship_sales_order", { token: admin.token, body: { _so_id: noInvoiceSoId } });
+    // The first SO already shipped (and thereby consumed) all 10 units
+    // stocked above -- top up before confirming this one, or confirm would
+    // fail for insufficient stock rather than the order actually shipping.
+    await rest("POST", "stock_movements", {
+      token: admin.token,
+      body: {
+        org_id: orgId,
+        product_id: productId,
+        warehouse_id: warehouseId,
+        type: "inbound",
+        quantity: 1,
+      },
+    });
+    const noInvoiceConfirm = await rpc("confirm_sales_order", {
+      token: admin.token,
+      body: { _so_id: noInvoiceSoId },
+    });
+    const noInvoiceShip = await rpc("ship_sales_order", {
+      token: admin.token,
+      body: { _so_id: noInvoiceSoId },
+    });
+    check(
+      "fixture: the no-invoice sales order actually ships",
+      noInvoiceConfirm.ok && noInvoiceShip.ok,
+      `confirm status ${noInvoiceConfirm.status}, ship status ${noInvoiceShip.status}`,
+    );
 
     const viewerCreate = await rest("POST", "sales_returns", {
       token: viewer.token,
@@ -2968,6 +2992,11 @@ async function main() {
       token: salesManager.token,
       body: { org_id: orgId, sales_order_id: noInvoiceSoId, return_number: `RMA-NOINV-${RUN_ID}` },
     });
+    check(
+      "fixture: a draft return can be created against the shipped no-invoice order",
+      noInvoiceReturn.ok,
+      `status ${noInvoiceReturn.status}, body ${JSON.stringify(noInvoiceReturn.data)}`,
+    );
     const noInvoiceReturnId = noInvoiceReturn.data?.[0]?.id;
     await rest("POST", "sales_return_items", {
       token: salesManager.token,
@@ -2987,8 +3016,8 @@ async function main() {
     });
     check(
       "a return cannot be approved before an invoice exists for its sales order",
-      !noInvoiceApprove.ok,
-      `expected failure, got status ${noInvoiceApprove.status}`,
+      !noInvoiceApprove.ok && /invoice/i.test(noInvoiceApprove.data?.message ?? ""),
+      `expected an invoice-related failure, got status ${noInvoiceApprove.status}, body ${JSON.stringify(noInvoiceApprove.data)}`,
     );
 
     const viewerComplete = await rest("PATCH", "sales_returns", {
