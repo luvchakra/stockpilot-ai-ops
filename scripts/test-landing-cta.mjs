@@ -13,7 +13,7 @@
 //   node scripts/test-landing-cta.mjs
 //   BASE_URL=http://localhost:3000 node scripts/test-landing-cta.mjs
 
-const BASE_URL = process.env.BASE_URL ?? "https://stockpilot-ai-ops.lovable.app";
+const BASE_URL = process.env.BASE_URL ?? "https://stockpilot-ai-ops.vercel.app";
 
 let passed = 0;
 let failed = 0;

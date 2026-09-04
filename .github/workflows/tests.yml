@@ -21,7 +21,7 @@ jobs:
       - name: Test Start Free / Log in are wired up
         run: node scripts/test-landing-cta.mjs
         env:
-          BASE_URL: https://stockpilot-ai-ops.lovable.app
+          BASE_URL: https://stockpilot-ai-ops.vercel.app
 
   tenant-rls-tests:
     name: Multi-tenant RLS tests
