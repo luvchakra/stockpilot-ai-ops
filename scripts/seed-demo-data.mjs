@@ -1,13 +1,18 @@
 #!/usr/bin/env node
 // Realistic demo/seed data for an existing StockPilot organization.
 //
-// Populates categories, warehouses, suppliers, customers, products, opening
-// stock, purchase orders + items (all 8 po_status values), sales orders +
-// items (all 8 so_status values), sales invoices + credit/debit notes, a
-// proforma invoice, stock transfers + items (all 7 stock_transfer_status
-// values, including a partial receive with damage and a cancellation
-// reversal), a couple of demo eway_bills/einvoices, and a handful of
-// low-stock/stockout alerts.
+// Populates 9 categories, 5 warehouses, 9 suppliers, 12 customers, 30
+// products, opening stock, ~20 purchase orders + items spread across all 8
+// po_status values, ~24 sales orders + items spread across all 8 so_status
+// values, a batch of sales invoices covering all 3 payment statuses,
+// credit notes (both full and partial), debit notes, proforma invoices,
+// ~14 stock transfers spread across all 7 stock_transfer_status values
+// (including partial receives with damage, a cancellation before shipping,
+// and a cancellation reversal in transit), several demo eway_bills/
+// einvoices (including cancelled/expired ones), and a broader set of
+// low-stock/stockout alerts. Multiple records per status/enum value are
+// seeded (not just one) so every list/filter/report view has enough volume
+// to look and behave like a real, in-use account.
 //
 // WHY DIRECT TABLE WRITES INSTEAD OF THE APP'S WORKFLOW RPCS:
 // confirm_sales_order / ship_sales_order / cancel_sales_order /
@@ -249,6 +254,34 @@ async function main() {
     { org_id: ORG_ID, name: "Raw Materials", description: "Inputs used in light assembly" },
     "Raw Materials",
   );
+  catId.furniture = await findOrCreate(
+    "categories",
+    `org_id=eq.${ORG_ID}&name=eq.Furniture`,
+    { org_id: ORG_ID, name: "Furniture", description: "Office furniture and fixtures" },
+    "Furniture",
+  );
+  catId.itPeripherals = await findOrCreate(
+    "categories",
+    `org_id=eq.${ORG_ID}&name=eq.IT Peripherals`,
+    { org_id: ORG_ID, name: "IT Peripherals", description: "Computer accessories and peripherals" },
+    "IT Peripherals",
+  );
+  catId.cleaning = await findOrCreate(
+    "categories",
+    `org_id=eq.${ORG_ID}&name=eq.Cleaning Supplies`,
+    {
+      org_id: ORG_ID,
+      name: "Cleaning Supplies",
+      description: "Janitorial and cleaning consumables",
+    },
+    "Cleaning Supplies",
+  );
+  catId.foodBeverage = await findOrCreate(
+    "categories",
+    `org_id=eq.${ORG_ID}&name=eq.Food & Beverage`,
+    { org_id: ORG_ID, name: "Food & Beverage", description: "Packaged food and beverage items" },
+    "Food & Beverage",
+  );
 
   // ---------------------------------------------------------------------
   // Warehouses
@@ -306,7 +339,47 @@ async function main() {
     },
     "Delhi Regional Hub (DEL-WH1)",
   );
-  const whState = { [wh.mum]: "Maharashtra", [wh.blr]: "Karnataka", [wh.del]: "Delhi" };
+  wh.hyd = await findOrCreate(
+    "warehouses",
+    `org_id=eq.${ORG_ID}&code=eq.HYD-WH1`,
+    {
+      org_id: ORG_ID,
+      code: "HYD-WH1",
+      name: "Hyderabad Distribution Center",
+      type: "regional",
+      address: "Plot 9, Gachibowli Industrial Layout",
+      city: "Hyderabad",
+      state: "Telangana",
+      postal_code: "500032",
+      contact_name: "Srinivas Rao",
+      contact_phone: "+91 90000 77889",
+    },
+    "Hyderabad Distribution Center (HYD-WH1)",
+  );
+  wh.kol = await findOrCreate(
+    "warehouses",
+    `org_id=eq.${ORG_ID}&code=eq.KOL-WH1`,
+    {
+      org_id: ORG_ID,
+      code: "KOL-WH1",
+      name: "Kolkata Eastern Warehouse",
+      type: "regional",
+      address: "18, Taratala Road Industrial Estate",
+      city: "Kolkata",
+      state: "West Bengal",
+      postal_code: "700088",
+      contact_name: "Debashree Sen",
+      contact_phone: "+91 90070 99001",
+    },
+    "Kolkata Eastern Warehouse (KOL-WH1)",
+  );
+  const whState = {
+    [wh.mum]: "Maharashtra",
+    [wh.blr]: "Karnataka",
+    [wh.del]: "Delhi",
+    [wh.hyd]: "Telangana",
+    [wh.kol]: "West Bengal",
+  };
 
   // ---------------------------------------------------------------------
   // Suppliers
@@ -414,6 +487,88 @@ async function main() {
     },
     "Global Mobile Components",
   );
+  sup.trident = await findOrCreate(
+    "suppliers",
+    `org_id=eq.${ORG_ID}&code=eq.SUP-TRD01`,
+    {
+      org_id: ORG_ID,
+      code: "SUP-TRD01",
+      name: "Trident Furniture Works",
+      contact_person: "Naveen Rao",
+      email: "sales@tridentfurniture.example.in",
+      phone: "+91 40 2712 3456",
+      address: "IDA Gandhinagar",
+      city: "Hyderabad",
+      state: "Telangana",
+      gst_number: "36AABCT6789J1Z4",
+      payment_terms: "Net 45",
+      lead_time_days: 15,
+      min_order_quantity: 5,
+      rating: 4.1,
+    },
+    "Trident Furniture Works",
+  );
+  sup.bytelink = await findOrCreate(
+    "suppliers",
+    `org_id=eq.${ORG_ID}&code=eq.SUP-BTL01`,
+    {
+      org_id: ORG_ID,
+      code: "SUP-BTL01",
+      name: "ByteLink IT Peripherals",
+      contact_person: "Divya Prasad",
+      email: "orders@bytelink.example.in",
+      phone: "+91 80 4956 2345",
+      address: "Whitefield Main Road",
+      city: "Bengaluru",
+      state: "Karnataka",
+      gst_number: "29AABCB7890K2Z5",
+      payment_terms: "Net 30",
+      lead_time_days: 8,
+      rating: 4.4,
+    },
+    "ByteLink IT Peripherals",
+  );
+  sup.cleanpro = await findOrCreate(
+    "suppliers",
+    `org_id=eq.${ORG_ID}&code=eq.SUP-CLP01`,
+    {
+      org_id: ORG_ID,
+      code: "SUP-CLP01",
+      name: "CleanPro Chemicals",
+      contact_person: "Ritwik Ghosh",
+      email: "sales@cleanprochemicals.example.in",
+      phone: "+91 33 2401 5678",
+      address: "Taratala Industrial Estate",
+      city: "Kolkata",
+      state: "West Bengal",
+      gst_number: "19AABCC8901L3Z6",
+      payment_terms: "Net 15",
+      lead_time_days: 6,
+      rating: 4.0,
+    },
+    "CleanPro Chemicals",
+  );
+  sup.anandFoods = await findOrCreate(
+    "suppliers",
+    `org_id=eq.${ORG_ID}&code=eq.SUP-AND01`,
+    {
+      org_id: ORG_ID,
+      code: "SUP-AND01",
+      name: "Anand Foods & Beverages",
+      contact_person: "Jignesh Patel",
+      email: "orders@anandfoods.example.in",
+      phone: "+91 79 2630 4567",
+      address: "Vatva Industrial Estate",
+      city: "Ahmedabad",
+      state: "Gujarat",
+      gst_number: "24AABCA9012M4Z7",
+      payment_terms: "Net 21",
+      lead_time_days: 9,
+      min_order_quantity: 20,
+      rating: 4.2,
+    },
+    "Anand Foods & Beverages",
+  );
 
   // ---------------------------------------------------------------------
   // Customers
@@ -507,6 +662,93 @@ async function main() {
       shipping_address: "Ground Floor, Powai Plaza, Mumbai, Maharashtra 400076",
     },
     "Fresh Mart Supermarket",
+  );
+  cust.deccan = await findOrCreate(
+    "customers",
+    `org_id=eq.${ORG_ID}&name=eq.Deccan Enterprises`,
+    {
+      org_id: ORG_ID,
+      name: "Deccan Enterprises",
+      email: "purchase@deccanenterprises.example.in",
+      phone: "+91 90000 78787",
+      gstin: "36AAJFD0123N0Z4",
+      state: "Telangana",
+      billing_address: "5-9-22, Abids Road, Hyderabad, Telangana 500001",
+      shipping_address: "5-9-22, Abids Road, Hyderabad, Telangana 500001",
+    },
+    "Deccan Enterprises",
+  );
+  cust.eastern = await findOrCreate(
+    "customers",
+    `org_id=eq.${ORG_ID}&name=eq.Eastern Retail Hub`,
+    {
+      org_id: ORG_ID,
+      name: "Eastern Retail Hub",
+      email: "buying@easternretailhub.example.in",
+      phone: "+91 90070 89898",
+      gstin: "19AAJFE1234O1Z5",
+      state: "West Bengal",
+      billing_address: "22, Park Street, Kolkata, West Bengal 700016",
+      shipping_address: "22, Park Street, Kolkata, West Bengal 700016",
+    },
+    "Eastern Retail Hub",
+  );
+  cust.rohan = await findOrCreate(
+    "customers",
+    `org_id=eq.${ORG_ID}&name=eq.Rohan Verma`,
+    {
+      org_id: ORG_ID,
+      name: "Rohan Verma",
+      email: "rohan.verma@example.in",
+      phone: "+91 98110 90909",
+      state: "Delhi",
+      billing_address: "C-14, Lajpat Nagar, New Delhi, Delhi 110024",
+      shipping_address: "C-14, Lajpat Nagar, New Delhi, Delhi 110024",
+    },
+    "Rohan Verma",
+  );
+  cust.sneha = await findOrCreate(
+    "customers",
+    `org_id=eq.${ORG_ID}&name=eq.Sneha Iyer`,
+    {
+      org_id: ORG_ID,
+      name: "Sneha Iyer",
+      email: "sneha.iyer@example.in",
+      phone: "+91 94440 12121",
+      state: "Tamil Nadu",
+      billing_address: "18, T Nagar, Chennai, Tamil Nadu 600017",
+      shipping_address: "18, T Nagar, Chennai, Tamil Nadu 600017",
+    },
+    "Sneha Iyer",
+  );
+  cust.globalOffice = await findOrCreate(
+    "customers",
+    `org_id=eq.${ORG_ID}&name=eq.Global Office Systems`,
+    {
+      org_id: ORG_ID,
+      name: "Global Office Systems",
+      email: "procurement@globalofficesystems.example.in",
+      phone: "+91 98450 23434",
+      gstin: "29AAKFG2345P2Z6",
+      state: "Karnataka",
+      billing_address: "3rd Cross, HSR Layout, Bengaluru, Karnataka 560102",
+      shipping_address: "3rd Cross, HSR Layout, Bengaluru, Karnataka 560102",
+    },
+    "Global Office Systems",
+  );
+  cust.meera = await findOrCreate(
+    "customers",
+    `org_id=eq.${ORG_ID}&name=eq.Meera Kapoor`,
+    {
+      org_id: ORG_ID,
+      name: "Meera Kapoor",
+      email: "meera.kapoor@example.in",
+      phone: "+91 90000 34545",
+      state: "Telangana",
+      billing_address: "Flat 6B, Jubilee Hills, Hyderabad, Telangana 500033",
+      shipping_address: "Flat 6B, Jubilee Hills, Hyderabad, Telangana 500033",
+    },
+    "Meera Kapoor",
   );
 
   // ---------------------------------------------------------------------
@@ -738,6 +980,202 @@ async function main() {
       rp: 10,
       rq: 40,
     },
+    {
+      sku: "MOB-004",
+      name: "Wireless Charging Pad 15W",
+      brand: "ShieldX",
+      category: catId.mobileAccessories,
+      supplier: sup.global,
+      hsn: "85044090",
+      unit: "pcs",
+      cost: 320,
+      price: 699,
+      tax: 18,
+      rp: 25,
+      rq: 120,
+    },
+    {
+      sku: "FURN-001",
+      name: "Ergonomic Office Chair",
+      brand: "ErgoSit",
+      category: catId.furniture,
+      supplier: sup.trident,
+      hsn: "94013000",
+      unit: "pcs",
+      cost: 3200,
+      price: 5499,
+      tax: 18,
+      rp: 8,
+      rq: 30,
+    },
+    {
+      sku: "FURN-002",
+      name: "Adjustable Standing Desk",
+      brand: "ErgoSit",
+      category: catId.furniture,
+      supplier: sup.trident,
+      hsn: "94033000",
+      unit: "pcs",
+      cost: 6500,
+      price: 10999,
+      tax: 18,
+      rp: 5,
+      rq: 20,
+    },
+    {
+      sku: "FURN-003",
+      name: "3-Drawer Filing Cabinet",
+      brand: "SteelForm",
+      category: catId.furniture,
+      supplier: sup.trident,
+      hsn: "94032090",
+      unit: "pcs",
+      cost: 2800,
+      price: 4499,
+      tax: 18,
+      rp: 6,
+      rq: 25,
+    },
+    {
+      sku: "ITP-001",
+      name: "Wireless Optical Mouse",
+      brand: "ByteLink",
+      category: catId.itPeripherals,
+      supplier: sup.bytelink,
+      hsn: "84716060",
+      unit: "pcs",
+      cost: 210,
+      price: 449,
+      tax: 18,
+      rp: 40,
+      rq: 200,
+    },
+    {
+      sku: "ITP-002",
+      name: "Mechanical Keyboard",
+      brand: "ByteLink",
+      category: catId.itPeripherals,
+      supplier: sup.bytelink,
+      hsn: "84716070",
+      unit: "pcs",
+      cost: 1100,
+      price: 1999,
+      tax: 18,
+      rp: 20,
+      rq: 80,
+    },
+    {
+      sku: "ITP-003",
+      name: "24-inch Full HD Monitor",
+      brand: "ByteLink",
+      category: catId.itPeripherals,
+      supplier: sup.bytelink,
+      hsn: "85285900",
+      unit: "pcs",
+      cost: 6200,
+      price: 9499,
+      tax: 18,
+      rp: 10,
+      rq: 40,
+    },
+    {
+      sku: "ITP-004",
+      name: "USB Hub 4-Port",
+      brand: "ByteLink",
+      category: catId.itPeripherals,
+      supplier: sup.bytelink,
+      hsn: "84716090",
+      unit: "pcs",
+      cost: 180,
+      price: 399,
+      tax: 18,
+      rp: 30,
+      rq: 150,
+    },
+    {
+      sku: "CLN-001",
+      name: "Multi-Surface Disinfectant Spray 500ml",
+      brand: "CleanPro",
+      category: catId.cleaning,
+      supplier: sup.cleanpro,
+      hsn: "34029090",
+      unit: "pcs",
+      cost: 85,
+      price: 165,
+      tax: 18,
+      rp: 60,
+      rq: 300,
+    },
+    {
+      sku: "CLN-002",
+      name: "Microfiber Cleaning Cloth Pack of 5",
+      brand: "CleanPro",
+      category: catId.cleaning,
+      supplier: sup.cleanpro,
+      hsn: "63071090",
+      unit: "pack",
+      cost: 90,
+      price: 179,
+      tax: 12,
+      rp: 40,
+      rq: 200,
+    },
+    {
+      sku: "CLN-003",
+      name: "Floor Cleaner 5L",
+      brand: "CleanPro",
+      category: catId.cleaning,
+      supplier: sup.cleanpro,
+      hsn: "34022090",
+      unit: "can",
+      cost: 220,
+      price: 399,
+      tax: 18,
+      rp: 25,
+      rq: 100,
+    },
+    {
+      sku: "FB-001",
+      name: "Assorted Cookies 200g",
+      brand: "Anand Snacks",
+      category: catId.foodBeverage,
+      supplier: sup.anandFoods,
+      hsn: "19053100",
+      unit: "pack",
+      cost: 35,
+      price: 65,
+      tax: 5,
+      rp: 100,
+      rq: 500,
+    },
+    {
+      sku: "FB-002",
+      name: "Instant Coffee Premix 1kg",
+      brand: "Anand Snacks",
+      category: catId.foodBeverage,
+      supplier: sup.anandFoods,
+      hsn: "21011100",
+      unit: "jar",
+      cost: 340,
+      price: 549,
+      tax: 5,
+      rp: 30,
+      rq: 150,
+    },
+    {
+      sku: "FB-003",
+      name: "Bottled Drinking Water 1L (Case of 12)",
+      brand: "Anand Snacks",
+      category: catId.foodBeverage,
+      supplier: sup.anandFoods,
+      hsn: "22011010",
+      unit: "case",
+      cost: 96,
+      price: 156,
+      tax: 12,
+      rp: 50,
+      rq: 250,
+    },
   ];
   const prod = {};
   for (const p of productDefs) {
@@ -792,10 +1230,29 @@ async function main() {
     ["OFF-004", wh.mum, 180],
     ["PKG-001", wh.mum, 1500],
     ["PKG-001", wh.blr, 800],
+    ["PKG-001", wh.hyd, 400],
     ["PKG-002", wh.mum, 5],
     ["PKG-003", wh.mum, 120],
     ["RAW-001", wh.mum, 45],
     // RAW-002 deliberately left with zero opening stock at MUM to demo a stockout alert.
+    ["MOB-004", wh.mum, 150],
+    ["MOB-004", wh.blr, 70],
+    ["ELEC-001", wh.hyd, 20],
+    ["OFF-001", wh.kol, 150],
+    ["FURN-001", wh.hyd, 12],
+    ["FURN-002", wh.hyd, 4],
+    ["FURN-003", wh.hyd, 10],
+    ["ITP-001", wh.blr, 150],
+    ["ITP-001", wh.hyd, 60],
+    ["ITP-002", wh.blr, 50],
+    ["ITP-003", wh.blr, 8],
+    ["ITP-004", wh.blr, 80],
+    ["CLN-001", wh.kol, 200],
+    ["CLN-002", wh.kol, 120],
+    ["CLN-003", wh.kol, 15],
+    ["FB-001", wh.kol, 300],
+    ["FB-002", wh.kol, 80],
+    ["FB-003", wh.kol, 60],
   ];
   for (const [sku, warehouse_id, quantity] of opening) {
     await insertMovement(ORG_ID, {
@@ -977,8 +1434,149 @@ async function main() {
     statusChain: ["draft", "pending_approval", "cancelled"],
   });
 
+  // Extra purchase orders — more volume per status, exercising the new
+  // suppliers/warehouses/products.
+  await createPo({
+    number: "PO-DEMO-0009",
+    supplierId: sup.bytelink,
+    warehouseId: wh.blr,
+    orderDaysAgo: 2,
+    items: [
+      { sku: "ITP-002", quantity: 40 },
+      { sku: "ITP-004", quantity: 60 },
+    ],
+    statusChain: ["draft"],
+  });
+  await createPo({
+    number: "PO-DEMO-0010",
+    supplierId: sup.cleanpro,
+    warehouseId: wh.kol,
+    orderDaysAgo: 3,
+    items: [{ sku: "CLN-003", quantity: 80 }],
+    statusChain: ["draft", "pending_approval"],
+  });
+  await createPo({
+    number: "PO-DEMO-0011",
+    supplierId: sup.trident,
+    warehouseId: wh.hyd,
+    orderDaysAgo: 9,
+    items: [
+      { sku: "FURN-001", quantity: 15 },
+      { sku: "FURN-003", quantity: 10 },
+    ],
+    statusChain: ["draft", "pending_approval", "approved"],
+  });
+  await createPo({
+    number: "PO-DEMO-0012",
+    supplierId: sup.anandFoods,
+    warehouseId: wh.kol,
+    orderDaysAgo: 5,
+    items: [
+      { sku: "FB-001", quantity: 400 },
+      { sku: "FB-003", quantity: 100 },
+    ],
+    statusChain: ["draft", "pending_approval", "approved", "sent"],
+  });
+  const po13 = await createPo({
+    number: "PO-DEMO-0013",
+    supplierId: sup.bytelink,
+    warehouseId: wh.hyd,
+    orderDaysAgo: 16,
+    items: [{ sku: "ITP-003", quantity: 20 }],
+    statusChain: ["draft", "pending_approval", "approved", "sent", "partially_received"],
+  });
+  po13.items.forEach((it) => {
+    it._warehouseId = wh.hyd;
+    it._poNumber = "PO-DEMO-0013";
+  });
+  await receivePoItems(po13.items, [0.4]);
+
+  // Deliberately not received into wh.hyd (kept at wh.mum below) so the
+  // Bengaluru ITP-003 shortfall and Hyderabad FURN-002 shortfall used for
+  // the low-stock alerts further down stay unreplenished.
+  const po14 = await createPo({
+    number: "PO-DEMO-0014",
+    supplierId: sup.trident,
+    warehouseId: wh.mum,
+    orderDaysAgo: 22,
+    items: [{ sku: "FURN-002", quantity: 10 }],
+    statusChain: ["draft", "pending_approval", "approved", "sent", "received"],
+  });
+  po14.items.forEach((it) => {
+    it._warehouseId = wh.mum;
+    it._poNumber = "PO-DEMO-0014";
+  });
+  await receivePoItems(po14.items, [1]);
+
+  const po15 = await createPo({
+    number: "PO-DEMO-0015",
+    supplierId: sup.global,
+    warehouseId: wh.mum,
+    orderDaysAgo: 18,
+    items: [{ sku: "MOB-004", quantity: 150 }],
+    statusChain: ["draft", "pending_approval", "approved", "sent", "received"],
+  });
+  po15.items.forEach((it) => {
+    it._warehouseId = wh.mum;
+    it._poNumber = "PO-DEMO-0015";
+  });
+  await receivePoItems(po15.items, [1]);
+
+  const po16 = await createPo({
+    number: "PO-DEMO-0016",
+    supplierId: sup.national,
+    warehouseId: wh.del,
+    orderDaysAgo: 35,
+    items: [{ sku: "OFF-003", quantity: 60 }],
+    statusChain: ["draft", "pending_approval", "approved", "sent", "received", "closed"],
+  });
+  po16.items.forEach((it) => {
+    it._warehouseId = wh.del;
+    it._poNumber = "PO-DEMO-0016";
+  });
+  await receivePoItems(po16.items, [1]);
+
+  const po17 = await createPo({
+    number: "PO-DEMO-0017",
+    supplierId: sup.cleanpro,
+    warehouseId: wh.kol,
+    orderDaysAgo: 40,
+    items: [{ sku: "CLN-001", quantity: 300 }],
+    statusChain: ["draft", "pending_approval", "approved", "sent", "received", "closed"],
+  });
+  po17.items.forEach((it) => {
+    it._warehouseId = wh.kol;
+    it._poNumber = "PO-DEMO-0017";
+  });
+  await receivePoItems(po17.items, [1]);
+
+  await createPo({
+    number: "PO-DEMO-0018",
+    supplierId: sup.sundar,
+    warehouseId: wh.mum,
+    orderDaysAgo: 8,
+    items: [{ sku: "RAW-002", quantity: 25 }],
+    statusChain: ["draft", "pending_approval", "cancelled"],
+  });
+  await createPo({
+    number: "PO-DEMO-0019",
+    supplierId: sup.bharat,
+    warehouseId: wh.blr,
+    orderDaysAgo: 6,
+    items: [{ sku: "PKG-002", quantity: 20 }],
+    statusChain: ["draft", "pending_approval", "approved", "cancelled"],
+  });
+  await createPo({
+    number: "PO-DEMO-0020",
+    supplierId: sup.anandFoods,
+    warehouseId: wh.kol,
+    orderDaysAgo: 1,
+    items: [{ sku: "FB-002", quantity: 60 }],
+    statusChain: ["draft", "pending_approval"],
+  });
+
   // ---------------------------------------------------------------------
-  // Sales orders — one per so_status value
+  // Sales orders — multiple per so_status value
   // ---------------------------------------------------------------------
   console.log("\nSales orders:");
 
@@ -1177,6 +1775,130 @@ async function main() {
     statusChain: ["draft", "confirmed", "processing", "packed", "shipped", "delivered", "returned"],
   });
 
+  // Extra sales orders — more volume per status, exercising the new
+  // customers/warehouses/products.
+  await createSo({
+    customerId: cust.deccan,
+    warehouseId: wh.hyd,
+    orderDaysAgo: 1,
+    items: [{ sku: "FURN-001", quantity: 3 }],
+    statusChain: ["draft"],
+  });
+  await createSo({
+    customerId: cust.meera,
+    warehouseId: wh.hyd,
+    orderDaysAgo: 2,
+    items: [
+      { sku: "ITP-001", quantity: 2 },
+      { sku: "CLN-001", quantity: 5 },
+    ],
+    statusChain: ["draft"],
+  });
+  await createSo({
+    customerId: cust.eastern,
+    warehouseId: wh.kol,
+    orderDaysAgo: 3,
+    items: [
+      { sku: "FB-001", quantity: 50 },
+      { sku: "FB-003", quantity: 20 },
+    ],
+    statusChain: ["draft", "confirmed"],
+  });
+  const soGlobalOfficeConfirmed = await createSo({
+    customerId: cust.globalOffice,
+    warehouseId: wh.blr,
+    orderDaysAgo: 4,
+    items: [
+      { sku: "ITP-002", quantity: 10 },
+      { sku: "ITP-004", quantity: 15 },
+    ],
+    statusChain: ["draft", "confirmed"],
+  });
+  await createSo({
+    customerId: cust.rohan,
+    warehouseId: wh.del,
+    orderDaysAgo: 3,
+    items: [{ sku: "OFF-002", quantity: 5 }],
+    statusChain: ["draft", "confirmed", "processing"],
+  });
+  await createSo({
+    customerId: cust.sneha,
+    warehouseId: wh.mum,
+    orderDaysAgo: 4,
+    items: [{ sku: "MOB-002", quantity: 8 }],
+    statusChain: ["draft", "confirmed", "processing"],
+  });
+  await createSo({
+    customerId: cust.deccan,
+    warehouseId: wh.hyd,
+    orderDaysAgo: 5,
+    items: [{ sku: "FURN-003", quantity: 4 }],
+    statusChain: ["draft", "confirmed", "processing", "packed"],
+  });
+  await createSo({
+    customerId: cust.chopra,
+    warehouseId: wh.mum,
+    orderDaysAgo: 3,
+    items: [{ sku: "PKG-003", quantity: 30 }],
+    statusChain: ["draft", "confirmed", "processing", "packed"],
+  });
+  const so9 = await createSo({
+    customerId: cust.globalOffice,
+    warehouseId: wh.blr,
+    orderDaysAgo: 8,
+    items: [{ sku: "ITP-003", quantity: 5 }],
+    statusChain: ["draft", "confirmed", "processing", "packed", "shipped"],
+  });
+  const so10 = await createSo({
+    customerId: cust.eastern,
+    warehouseId: wh.kol,
+    orderDaysAgo: 11,
+    items: [{ sku: "FB-002", quantity: 25 }],
+    statusChain: ["draft", "confirmed", "processing", "packed", "shipped"],
+  });
+  const so11 = await createSo({
+    customerId: cust.deccan,
+    warehouseId: wh.hyd,
+    orderDaysAgo: 9,
+    items: [{ sku: "FURN-002", quantity: 2 }],
+    statusChain: ["draft", "confirmed", "processing", "packed", "shipped", "delivered"],
+  });
+  const so12 = await createSo({
+    customerId: cust.meera,
+    warehouseId: wh.hyd,
+    orderDaysAgo: 7,
+    items: [{ sku: "CLN-002", quantity: 10 }],
+    statusChain: ["draft", "confirmed", "processing", "packed", "shipped", "delivered"],
+  });
+  const so13 = await createSo({
+    customerId: cust.freshmart,
+    warehouseId: wh.mum,
+    orderDaysAgo: 6,
+    items: [{ sku: "FB-003", quantity: 40 }],
+    statusChain: ["draft", "confirmed", "processing", "packed", "shipped", "delivered"],
+  });
+  await createSo({
+    customerId: cust.rohan,
+    warehouseId: wh.del,
+    orderDaysAgo: 5,
+    items: [{ sku: "ITP-001", quantity: 3 }],
+    statusChain: ["draft", "confirmed", "cancelled"],
+  });
+  await createSo({
+    customerId: cust.priya,
+    warehouseId: wh.mum,
+    orderDaysAgo: 3,
+    items: [{ sku: "MOB-004", quantity: 5 }],
+    statusChain: ["draft", "confirmed", "cancelled"],
+  });
+  const so16 = await createSo({
+    customerId: cust.globalOffice,
+    warehouseId: wh.blr,
+    orderDaysAgo: 18,
+    items: [{ sku: "ITP-004", quantity: 10 }],
+    statusChain: ["draft", "confirmed", "processing", "packed", "shipped", "delivered", "returned"],
+  });
+
   // ---------------------------------------------------------------------
   // Sales invoices + credit/debit notes + proforma invoice
   // ---------------------------------------------------------------------
@@ -1259,6 +1981,42 @@ async function main() {
     customerId: so8.customerId,
     paymentStatus: "partial",
   });
+  const invoice9 = await invoiceSo({
+    so: so9.so,
+    items: so9.items,
+    customerId: so9.customerId,
+    paymentStatus: "paid",
+  });
+  const invoice10 = await invoiceSo({
+    so: so10.so,
+    items: so10.items,
+    customerId: so10.customerId,
+    paymentStatus: "unpaid",
+  });
+  const invoice11 = await invoiceSo({
+    so: so11.so,
+    items: so11.items,
+    customerId: so11.customerId,
+    paymentStatus: "paid",
+  });
+  const invoice12 = await invoiceSo({
+    so: so12.so,
+    items: so12.items,
+    customerId: so12.customerId,
+    paymentStatus: "partial",
+  });
+  const invoice13 = await invoiceSo({
+    so: so13.so,
+    items: so13.items,
+    customerId: so13.customerId,
+    paymentStatus: "paid",
+  });
+  const invoice16 = await invoiceSo({
+    so: so16.so,
+    items: so16.items,
+    customerId: so16.customerId,
+    paymentStatus: "partial",
+  });
 
   console.log("\nCredit / debit notes:");
   {
@@ -1279,6 +2037,31 @@ async function main() {
       },
     ]);
     console.log(`  + ${cnNumber} against ${invoice8.invoice_number} (full refund)`);
+  }
+  {
+    // Partial return: only 4 of the 10 units on invoice16 came back.
+    const returnedFraction = 4 / 10;
+    const cnSubtotal = round2(invoice16.subtotal * returnedFraction);
+    const cnCgst = round2(invoice16.cgst_amount * returnedFraction);
+    const cnSgst = round2(invoice16.sgst_amount * returnedFraction);
+    const cnIgst = round2(invoice16.igst_amount * returnedFraction);
+    const cnNumber = await nextCreditNoteNumber();
+    await insert("credit_notes", [
+      {
+        org_id: ORG_ID,
+        credit_note_number: cnNumber,
+        sales_invoice_id: invoice16.id,
+        created_by: ACTOR,
+        is_full: false,
+        reason: "4 of 10 units returned by customer — partial refund issued",
+        subtotal: cnSubtotal,
+        cgst_amount: cnCgst,
+        sgst_amount: cnSgst,
+        igst_amount: cnIgst,
+        total_amount: round2(cnSubtotal + cnCgst + cnSgst + cnIgst),
+      },
+    ]);
+    console.log(`  + ${cnNumber} against ${invoice16.invoice_number} (partial refund)`);
   }
   {
     const dnSubtotal = 150;
@@ -1304,6 +2087,31 @@ async function main() {
       },
     ]);
     console.log(`  + ${dnNumber} against ${invoice5.invoice_number} (extra charges)`);
+  }
+  {
+    const dnSubtotal = 220;
+    const split = taxSplit(
+      dnSubtotal,
+      18,
+      (await get("customers", `id=eq.${cust.eastern}&select=state`))[0].state,
+      whState[wh.kol],
+    );
+    const dnNumber = `DN-DEMO-${(Date.now() + 1).toString(36).toUpperCase()}`;
+    await insert("debit_notes", [
+      {
+        org_id: ORG_ID,
+        debit_note_number: dnNumber,
+        sales_invoice_id: invoice10.id,
+        created_by: ACTOR,
+        reason: "Late payment interest charged on overdue invoice",
+        subtotal: dnSubtotal,
+        cgst_amount: split.cgst,
+        sgst_amount: split.sgst,
+        igst_amount: split.igst,
+        total_amount: round2(dnSubtotal + split.cgst + split.sgst + split.igst),
+      },
+    ]);
+    console.log(`  + ${dnNumber} against ${invoice10.invoice_number} (late payment interest)`);
   }
 
   console.log("\nProforma invoice:");
@@ -1331,6 +2139,26 @@ async function main() {
       ]);
       console.log(`  + ${piNumber} for TechNova Solutions`);
     }
+  }
+  {
+    const so = soGlobalOfficeConfirmed.so;
+    const piNumber = `PI-DEMO-${(Date.now() + 1).toString(36).toUpperCase()}`;
+    await insert("proforma_invoices", [
+      {
+        org_id: ORG_ID,
+        proforma_number: piNumber,
+        customer_id: cust.globalOffice,
+        sales_order_id: so.id,
+        created_by: ACTOR,
+        proforma_date: so.order_date,
+        subtotal: so.subtotal,
+        cgst_amount: so.cgst_amount,
+        sgst_amount: so.sgst_amount,
+        igst_amount: so.igst_amount,
+        total_amount: so.total_amount,
+      },
+    ]);
+    console.log(`  + ${piNumber} for Global Office Systems`);
   }
 
   // ---------------------------------------------------------------------
@@ -1365,6 +2193,59 @@ async function main() {
     console.log(`  + demo e-Way Bill ${ewbNumber} for ${invoice6.invoice_number}`);
   }
   {
+    const ewbNumber = `${Date.now() + 1}`.slice(0, 12).padEnd(12, "0");
+    await insert("eway_bills", [
+      {
+        org_id: ORG_ID,
+        ewb_number: ewbNumber,
+        ewb_date: invoice11.created_at,
+        valid_until: daysAgo(-1),
+        source_type: "sales_invoice",
+        source_id: invoice11.id,
+        status: "generated",
+        transport_mode: "Road",
+        vehicle_number: "TS09CD5678",
+        transporter_name: "Deccan Cargo Movers",
+        distance_km: 12,
+        created_by: ACTOR,
+        request_payload: { demo: true, docNo: invoice11.invoice_number },
+        response_payload: {
+          demo: true,
+          ewbNo: ewbNumber,
+          note: "Synthetic demo data — not a real e-Way Bill",
+        },
+      },
+    ]);
+    console.log(`  + demo e-Way Bill ${ewbNumber} for ${invoice11.invoice_number}`);
+  }
+  {
+    // Expired e-Way Bill: shipped 11 days ago on an invoice that's still unpaid.
+    const ewbNumber = `${Date.now() + 2}`.slice(0, 12).padEnd(12, "0");
+    await insert("eway_bills", [
+      {
+        org_id: ORG_ID,
+        ewb_number: ewbNumber,
+        ewb_date: invoice10.created_at,
+        valid_until: daysAgo(3),
+        source_type: "sales_invoice",
+        source_id: invoice10.id,
+        status: "expired",
+        transport_mode: "Road",
+        vehicle_number: "WB06EF9012",
+        transporter_name: "Eastern Freight Carriers",
+        distance_km: 8,
+        created_by: ACTOR,
+        request_payload: { demo: true, docNo: invoice10.invoice_number },
+        response_payload: {
+          demo: true,
+          ewbNo: ewbNumber,
+          note: "Synthetic demo data — not a real e-Way Bill",
+        },
+      },
+    ]);
+    console.log(`  + demo e-Way Bill ${ewbNumber} for ${invoice10.invoice_number} (expired)`);
+  }
+  {
     const irn = fakeIrn(`demo-${invoice8.id}`);
     await insert("einvoices", [
       {
@@ -1385,6 +2266,53 @@ async function main() {
       },
     ]);
     console.log(`  + demo e-Invoice IRN for ${invoice8.invoice_number}`);
+  }
+  {
+    const irn = fakeIrn(`demo-${invoice9.id}`);
+    await insert("einvoices", [
+      {
+        org_id: ORG_ID,
+        invoice_id: invoice9.id,
+        irn,
+        ack_no: `${Date.now() + 1}`.padStart(15, "1"),
+        ack_date: new Date().toISOString(),
+        qr_code: `demo-irn:${irn}`,
+        status: "generated",
+        created_by: ACTOR,
+        request_payload: { demo: true, docNo: invoice9.invoice_number },
+        response_payload: {
+          demo: true,
+          irn,
+          note: "Synthetic demo data — not a real e-Invoice IRN",
+        },
+      },
+    ]);
+    console.log(`  + demo e-Invoice IRN for ${invoice9.invoice_number}`);
+  }
+  {
+    // Cancelled e-Invoice: generated, then voided (e.g. order details changed after filing).
+    const irn = fakeIrn(`demo-${invoice13.id}`);
+    await insert("einvoices", [
+      {
+        org_id: ORG_ID,
+        invoice_id: invoice13.id,
+        irn,
+        ack_no: `${Date.now() + 2}`.padStart(15, "1"),
+        ack_date: daysAgo(4),
+        qr_code: `demo-irn:${irn}`,
+        status: "cancelled",
+        cancel_reason: "Data entry error corrected — reissued as a fresh invoice",
+        cancelled_at: daysAgo(2),
+        created_by: ACTOR,
+        request_payload: { demo: true, docNo: invoice13.invoice_number },
+        response_payload: {
+          demo: true,
+          irn,
+          note: "Synthetic demo data — not a real e-Invoice IRN",
+        },
+      },
+    ]);
+    console.log(`  + demo e-Invoice IRN for ${invoice13.invoice_number} (cancelled)`);
   }
 
   // ---------------------------------------------------------------------
@@ -1611,8 +2539,136 @@ async function main() {
       cancelled_at: new Date().toISOString(),
     });
   }
+  // T8: draft
+  await createTransfer({
+    number: "ST-DEMO-0008",
+    sourceId: wh.hyd,
+    destId: wh.mum,
+    items: [{ sku: "FURN-001", quantity: 5 }],
+    daysAgoOrdered: 1,
+  });
+
+  // T9: requested
+  {
+    const t = await createTransfer({
+      number: "ST-DEMO-0009",
+      sourceId: wh.blr,
+      destId: wh.kol,
+      items: [{ sku: "ITP-002", quantity: 20 }],
+      daysAgoOrdered: 2,
+    });
+    await patch("stock_transfers", t.transfer.id, { status: "requested" });
+  }
+
+  // T10: approved
+  {
+    const t = await createTransfer({
+      number: "ST-DEMO-0010",
+      sourceId: wh.kol,
+      destId: wh.del,
+      items: [{ sku: "FB-001", quantity: 100 }],
+      daysAgoOrdered: 3,
+    });
+    await patch("stock_transfers", t.transfer.id, { status: "requested" });
+    await patch("stock_transfers", t.transfer.id, { status: "approved", approved_by: ACTOR });
+  }
+
+  // T11: in_transit
+  {
+    const t = await createTransfer({
+      number: "ST-DEMO-0011",
+      sourceId: wh.mum,
+      destId: wh.hyd,
+      items: [{ sku: "MOB-004", quantity: 40 }],
+      daysAgoOrdered: 2,
+    });
+    await patch("stock_transfers", t.transfer.id, { status: "requested" });
+    await patch("stock_transfers", t.transfer.id, { status: "approved", approved_by: ACTOR });
+    await shipTransfer(t.transfer, t.items, wh.mum, wh.hyd);
+  }
+
+  // T12: received
+  {
+    const t = await createTransfer({
+      number: "ST-DEMO-0012",
+      sourceId: wh.hyd,
+      destId: wh.blr,
+      items: [{ sku: "FURN-003", quantity: 8 }],
+      daysAgoOrdered: 7,
+    });
+    await patch("stock_transfers", t.transfer.id, { status: "requested" });
+    await patch("stock_transfers", t.transfer.id, { status: "approved", approved_by: ACTOR });
+    await shipTransfer(t.transfer, t.items, wh.hyd, wh.blr);
+    const [item] = t.items;
+    await insertMovement(ORG_ID, {
+      product_id: item.product_id,
+      warehouse_id: wh.blr,
+      type: "xfer_receive",
+      quantity: item.quantity,
+      reference: t.transfer.transfer_number,
+      notes: "Received against stock transfer",
+      created_by: ACTOR,
+    });
+    await patch("stock_transfer_items", item.id, { received_quantity: item.quantity });
+    await patch("stock_transfers", t.transfer.id, {
+      status: "received",
+      received_at: new Date().toISOString(),
+    });
+  }
+
+  // T13: completed
+  {
+    const t = await createTransfer({
+      number: "ST-DEMO-0013",
+      sourceId: wh.kol,
+      destId: wh.mum,
+      items: [{ sku: "CLN-001", quantity: 150 }],
+      daysAgoOrdered: 14,
+    });
+    await patch("stock_transfers", t.transfer.id, { status: "requested" });
+    await patch("stock_transfers", t.transfer.id, { status: "approved", approved_by: ACTOR });
+    await shipTransfer(t.transfer, t.items, wh.kol, wh.mum);
+    const [item] = t.items;
+    await insertMovement(ORG_ID, {
+      product_id: item.product_id,
+      warehouse_id: wh.mum,
+      type: "xfer_receive",
+      quantity: item.quantity,
+      reference: t.transfer.transfer_number,
+      notes: "Received against stock transfer",
+      created_by: ACTOR,
+    });
+    await patch("stock_transfer_items", item.id, { received_quantity: item.quantity });
+    await patch("stock_transfers", t.transfer.id, {
+      status: "received",
+      received_at: new Date().toISOString(),
+    });
+    await patch("stock_transfers", t.transfer.id, {
+      status: "completed",
+      completed_at: new Date().toISOString(),
+    });
+  }
+
+  // T14: cancelled before shipping (a different use case from T7's in-transit
+  // reversal — here nothing has moved yet, so no reversal movements needed).
+  {
+    const t = await createTransfer({
+      number: "ST-DEMO-0014",
+      sourceId: wh.del,
+      destId: wh.kol,
+      items: [{ sku: "OFF-003", quantity: 10 }],
+      daysAgoOrdered: 5,
+    });
+    await patch("stock_transfers", t.transfer.id, { status: "requested" });
+    await patch("stock_transfers", t.transfer.id, { status: "approved", approved_by: ACTOR });
+    await patch("stock_transfers", t.transfer.id, {
+      status: "cancelled",
+      cancelled_at: new Date().toISOString(),
+    });
+  }
+
   console.log(
-    "  + ST-DEMO-0001..0007 across draft/requested/approved/in_transit/received/completed/cancelled",
+    "  + ST-DEMO-0001..0014 across draft/requested/approved/in_transit/received/completed/cancelled",
   );
 
   // ---------------------------------------------------------------------
@@ -1649,6 +2705,24 @@ async function main() {
       title: "Out of stock: Steel Sheet 2mm at Mumbai Central Warehouse",
       severity: "critical",
       action: "Reorder urgently from Sundar Raw Materials Pvt Ltd (lead time 10 days)",
+    },
+    {
+      sku: "ITP-003",
+      title: "Low stock: 24-inch Full HD Monitor at Bengaluru Fulfillment Center",
+      severity: "warning",
+      action: "Reorder from ByteLink IT Peripherals for Bengaluru (lead time 8 days)",
+    },
+    {
+      sku: "CLN-003",
+      title: "Low stock: Floor Cleaner 5L at Kolkata Eastern Warehouse",
+      severity: "warning",
+      action: "PO-DEMO-0010 already pending approval with CleanPro Chemicals",
+    },
+    {
+      sku: "FURN-002",
+      title: "Low stock: Adjustable Standing Desk at Hyderabad Distribution Center",
+      severity: "warning",
+      action: "Reorder from Trident Furniture Works for Hyderabad (lead time 15 days)",
     },
   ];
   for (const a of alertDefs) {
