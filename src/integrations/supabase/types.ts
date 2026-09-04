@@ -73,6 +73,99 @@ export type Database = {
           },
         ]
       }
+      api_key_secrets: {
+        Row: {
+          api_key_id: string
+          key_hash: string
+        }
+        Insert: {
+          api_key_id: string
+          key_hash: string
+        }
+        Update: {
+          api_key_id?: string
+          key_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_key_secrets_api_key_id_fkey"
+            columns: ["api_key_id"]
+            isOneToOne: true
+            referencedRelation: "api_keys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      api_keys: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          key_prefix: string
+          last_used_at: string | null
+          name: string
+          org_id: string
+          permissions: string[]
+          revoked_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          key_prefix: string
+          last_used_at?: string | null
+          name: string
+          org_id: string
+          permissions?: string[]
+          revoked_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          key_prefix?: string
+          last_used_at?: string | null
+          name?: string
+          org_id?: string
+          permissions?: string[]
+          revoked_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_keys_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      api_rate_limit_counters: {
+        Row: {
+          org_id: string
+          request_count: number
+          window_start: string
+        }
+        Insert: {
+          org_id: string
+          request_count?: number
+          window_start: string
+        }
+        Update: {
+          org_id?: string
+          request_count?: number
+          window_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_rate_limit_counters_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_log: {
         Row: {
           action: string
@@ -2234,6 +2327,10 @@ export type Database = {
       approve_sales_return: { Args: { _return_id: string }; Returns: undefined }
       cancel_sales_order: { Args: { _so_id: string }; Returns: undefined }
       cancel_stock_transfer: { Args: { _transfer_id: string }; Returns: undefined }
+      check_api_rate_limit: {
+        Args: { _limit?: number; _org_id: string }
+        Returns: boolean
+      }
       confirm_sales_order: { Args: { _so_id: string }; Returns: undefined }
       create_credit_note: {
         Args: {

@@ -20,6 +20,7 @@ import {
 import { INDIAN_STATES, isValidGstin } from "@/lib/gst";
 import { usePermissions } from "@/hooks/usePermissions";
 import { formatDateTime } from "@/lib/format";
+import { ApiKeysPanel } from "@/components/api-keys-panel";
 
 const CURRENCIES = [
   { value: "INR", label: "INR — Indian Rupee" },
@@ -682,6 +683,17 @@ function Account() {
                       : "Save credentials"}
                 </Button>
               </form>
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {org && canEditOrg ? (
+          <Card className="max-w-lg">
+            <CardHeader>
+              <CardTitle>API keys</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ApiKeysPanel orgId={org.id} />
             </CardContent>
           </Card>
         ) : null}
