@@ -21,6 +21,7 @@ import {
   Plus,
   Receipt,
   Repeat,
+  RotateCcw,
   Search,
   Shield,
   ShoppingCart,
@@ -89,6 +90,7 @@ const NAV_GROUPS = [
       { to: "/customers", label: "Customers", icon: Users },
       { to: "/sales-orders", label: "Sales Orders", icon: ShoppingCart },
       { to: "/sales-invoices", label: "Sales Invoices", icon: FileText },
+      { to: "/sales-returns", label: "Sales Returns", icon: RotateCcw },
     ],
   },
   {
