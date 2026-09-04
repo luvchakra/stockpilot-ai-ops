@@ -40,6 +40,8 @@ import { cn } from "@/lib/utils";
 import { GST_RATE_SLABS, aggregateGst, computeLineGst, resolveStateCode } from "@/lib/gst";
 import { usePermissions } from "@/hooks/usePermissions";
 import { EwayBillPanel } from "@/components/eway-bill-panel";
+import { ScanInput } from "@/components/scan-input";
+import { resolveProductByScan } from "@/lib/barcode-scan";
 
 export const Route = createFileRoute("/_authenticated/sales-orders")({
   head: () => ({
@@ -80,11 +82,12 @@ type ProductOption = {
   id: string;
   name: string;
   sku: string;
+  barcode: string | null;
   selling_price: number;
   tax_rate: number;
 };
 type SalesOrderItemRow = Database["public"]["Tables"]["sales_order_items"]["Row"] & {
-  products: { name: string; sku: string };
+  products: { name: string; sku: string; barcode: string | null };
 };
 type SalesOrderItemFormRow = {
   product_id: string;
@@ -270,7 +273,7 @@ function SalesOrders() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
-        .select("id, name, sku, selling_price, tax_rate")
+        .select("id, name, sku, barcode, selling_price, tax_rate")
         .eq("org_id", orgId!)
         .eq("status", "active")
         .order("name");
@@ -285,7 +288,7 @@ function SalesOrders() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("sales_order_items")
-        .select("*, products(name, sku)")
+        .select("*, products(name, sku, barcode)")
         .eq("sales_order_id", detailId!)
         .order("created_at");
       if (error) throw error;
@@ -315,6 +318,34 @@ function SalesOrders() {
   const gstTotals = aggregateGst(validLines.map(lineGstFor));
   const total =
     subtotal + gstTotals.totalTax + (Number(shippingAmount) || 0) - (Number(discountAmount) || 0);
+
+  // Mirrors purchase-orders.tsx's handleScanAddLine: resolve a scanned/typed
+  // barcode or SKU to a product, bump an existing line for it, else fill the
+  // first empty line, else append a new one.
+  const handleScanAddLine = (value: string) => {
+    const product = resolveProductByScan(products.data ?? [], value);
+    if (!product) {
+      toast.error(`No product found for "${value}". Search for it manually instead.`);
+      return;
+    }
+    setLines((ls) => {
+      const existingIdx = ls.findIndex((l) => l.product_id === product.id);
+      if (existingIdx !== -1) {
+        return ls.map((l, i) =>
+          i === existingIdx ? { ...l, quantity: String((Number(l.quantity) || 0) + 1) } : l,
+        );
+      }
+      const newLine: LineItem = {
+        product_id: product.id,
+        quantity: "1",
+        unit_price: String(product.selling_price),
+        tax_rate: String(product.tax_rate),
+      };
+      const emptyIdx = ls.findIndex((l) => !l.product_id);
+      if (emptyIdx !== -1) return ls.map((l, i) => (i === emptyIdx ? newLine : l));
+      return [...ls, newLine];
+    });
+  };
 
   const resetCreateForm = () => {
     setCustomerId("");
@@ -594,6 +625,10 @@ function SalesOrders() {
                       Add line
                     </Button>
                   </div>
+                  <ScanInput
+                    onScan={handleScanAddLine}
+                    placeholder="Scan or type a product barcode / SKU to add a line"
+                  />
                   <div className="space-y-2">
                     {lines.map((line, idx) => (
                       <div key={idx} className="flex flex-wrap items-end gap-2">

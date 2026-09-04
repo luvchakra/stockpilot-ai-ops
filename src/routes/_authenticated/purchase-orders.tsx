@@ -40,6 +40,8 @@ import { cn } from "@/lib/utils";
 import { GST_RATE_SLABS, aggregateGst, computeLineGst, resolveStateCode } from "@/lib/gst";
 import { usePermissions } from "@/hooks/usePermissions";
 import { EwayBillPanel } from "@/components/eway-bill-panel";
+import { ScanInput } from "@/components/scan-input";
+import { resolveProductByScan } from "@/lib/barcode-scan";
 
 export const Route = createFileRoute("/_authenticated/purchase-orders")({
   head: () => ({
@@ -247,7 +249,7 @@ function PurchaseOrders() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products_safe")
-        .select("id, name, sku, cost_price, tax_rate")
+        .select("id, name, sku, barcode, cost_price, tax_rate")
         .eq("org_id", orgId!)
         .eq("status", "active")
         .order("name");
@@ -262,7 +264,7 @@ function PurchaseOrders() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("purchase_order_items")
-        .select("*, products(name, sku)")
+        .select("*, products(name, sku, barcode)")
         .eq("purchase_order_id", detailId!)
         .order("created_at");
       if (error) throw error;
@@ -292,6 +294,67 @@ function PurchaseOrders() {
   const gstTotals = aggregateGst(validLines.map(lineGstFor));
   const total =
     subtotal + gstTotals.totalTax + (Number(shippingAmount) || 0) - (Number(discountAmount) || 0);
+
+  // Resolves a scanned/typed barcode or SKU to a product and folds it into
+  // the line-item list: bump an existing line for the same product, else
+  // fill the first still-empty line, else append a new one -- mirroring
+  // what a warehouse operator would otherwise do by hand with the Select
+  // above, just without the manual lookup.
+  const handleScanAddLine = (value: string) => {
+    const product = resolveProductByScan(
+      (products.data ?? []).map((p) => ({ ...p, id: p.id!, sku: p.sku ?? "" })),
+      value,
+    );
+    if (!product) {
+      toast.error(`No product found for "${value}". Search for it manually instead.`);
+      return;
+    }
+    setLines((ls) => {
+      const existingIdx = ls.findIndex((l) => l.product_id === product.id);
+      if (existingIdx !== -1) {
+        return ls.map((l, i) =>
+          i === existingIdx ? { ...l, quantity: String((Number(l.quantity) || 0) + 1) } : l,
+        );
+      }
+      const newLine: LineItem = {
+        product_id: product.id,
+        quantity: "1",
+        unit_cost: String(product.cost_price ?? 0),
+        tax_rate: String(product.tax_rate ?? 0),
+      };
+      const emptyIdx = ls.findIndex((l) => !l.product_id);
+      if (emptyIdx !== -1) return ls.map((l, i) => (i === emptyIdx ? newLine : l));
+      return [...ls, newLine];
+    });
+  };
+
+  // Receiving only ever increments quantities on this PO's existing,
+  // already-ordered lines (there's no "add an unordered item" concept
+  // here), so a scan resolves to the matching line and stages its receive
+  // quantity rather than creating anything new. Repeated scans of the same
+  // code add up, capped at what's left to receive.
+  const handleScanReceive = (value: string) => {
+    const candidates = (detail.data ?? []).map((item) => ({
+      id: item.id,
+      sku: item.products?.sku ?? "",
+      barcode: item.products?.barcode ?? null,
+    }));
+    const matched = resolveProductByScan(candidates, value);
+    const item = matched ? (detail.data ?? []).find((i) => i.id === matched.id) : undefined;
+    if (!item) {
+      toast.error(`No matching line item found for "${value}" on this purchase order.`);
+      return;
+    }
+    const remaining = Number(item.quantity) - Number(item.received_quantity);
+    if (remaining <= 0) {
+      toast.error(`${item.products?.name} is already fully received.`);
+      return;
+    }
+    setReceiveQty((q) => {
+      const next = Math.min((Number(q[item.id]) || 0) + 1, remaining);
+      return { ...q, [item.id]: String(next) };
+    });
+  };
 
   const resetCreateForm = () => {
     setSupplierId("");
@@ -533,6 +596,10 @@ function PurchaseOrders() {
                       Add line
                     </Button>
                   </div>
+                  <ScanInput
+                    onScan={handleScanAddLine}
+                    placeholder="Scan or type a product barcode / SKU to add a line"
+                  />
                   <div className="space-y-2">
                     {lines.map((line, idx) => (
                       <div key={idx} className="flex flex-wrap items-end gap-2">
@@ -903,6 +970,14 @@ function PurchaseOrders() {
                   </div>
                 ) : null}
               </div>
+
+              {canReceivePermission &&
+              ["sent", "approved", "partially_received"].includes(selectedPo.status) ? (
+                <ScanInput
+                  onScan={handleScanReceive}
+                  placeholder="Scan or type a product barcode / SKU to receive it"
+                />
+              ) : null}
 
               <div className="hidden sm:block">
                 <Table>

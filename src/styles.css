@@ -240,4 +240,19 @@
   .no-print {
     display: none !important;
   }
+
+  /* Barcode/QR label sheet: each label sized for a common 2in x 1in
+     thermal label (e.g. Zebra-compatible printers), laid out so a label
+     never splits across a page break. */
+  .print-area.label-sheet {
+    padding: 0;
+  }
+  .label-sheet .label-card {
+    page-break-inside: avoid;
+  }
+}
+
+.label-card {
+  width: 2in;
+  height: 1in;
 }
